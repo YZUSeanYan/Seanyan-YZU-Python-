@@ -15,6 +15,12 @@ import { usePracticeProgress, type PracticeProgress } from '@/hooks/usePracticeP
 
 type AnswerState = 'unanswered' | 'correct' | 'wrong' | 'skipped';
 
+function scrollToPracticeTop() {
+  window.requestAnimationFrame(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
+
 export default function Practice() {
   const { questions, categories, loading } = useQuestions();
   const { addWrongAnswer } = useWrongBook();
@@ -229,6 +235,7 @@ export default function Practice() {
       setCurrentIndex((i) => i + 1);
       setSelectedAnswer(null);
       setSubmitted(false);
+      scrollToPracticeTop();
     } else {
       setShowResult(true);
     }
@@ -239,6 +246,7 @@ export default function Practice() {
     setCurrentIndex(index);
     setSelectedAnswer(userAnswers[index] || null);
     setSubmitted(answerStates[index] !== 'unanswered');
+    scrollToPracticeTop();
   }, [currentIndex, userAnswers, answerStates]);
 
   const handleNext = useCallback(() => {
@@ -247,6 +255,7 @@ export default function Practice() {
       setCurrentIndex((i) => i + 1);
       setSelectedAnswer(userAnswers[currentIndex + 1] || null);
       setSubmitted(answerStates[currentIndex + 1] !== 'unanswered');
+      scrollToPracticeTop();
     }
   }, [currentIndex, filteredQuestions.length, userAnswers, answerStates]);
 
@@ -256,6 +265,7 @@ export default function Practice() {
       setCurrentIndex((i) => i - 1);
       setSelectedAnswer(userAnswers[currentIndex - 1] || null);
       setSubmitted(answerStates[currentIndex - 1] !== 'unanswered');
+      scrollToPracticeTop();
     }
   }, [currentIndex, userAnswers, answerStates]);
 
@@ -280,6 +290,7 @@ export default function Practice() {
       setSelectedAnswer(null);
       setSubmitted(false);
       setShowResult(false);
+      scrollToPracticeTop();
     }
   }, [answerStates]);
 
@@ -304,6 +315,7 @@ export default function Practice() {
     setCurrentIndex(0);
     setSelectedAnswer(null);
     setSubmitted(false);
+    scrollToPracticeTop();
   }, [currentQuestion, filteredQuestions.length, saveImmediate, searchQuery, selectedCategory, selectedDifficulty, selectedType]);
 
   const correctCount = answerStates.filter((s) => s === 'correct').length;

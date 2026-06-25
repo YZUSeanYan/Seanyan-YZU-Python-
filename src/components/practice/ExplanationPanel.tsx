@@ -63,7 +63,15 @@ function getSectionStyle(title: string) {
 }
 
 function splitExplanation(explanation: string): ExplanationSection[] {
-  const lines = explanation
+  const normalizedExplanation = explanation
+    .replace(
+      /\s*(\*\*(?:正确答案|错误选项分析|知识点延伸|代码逐行分析|代码执行过程|详细计算过程|详细分析|其他.*?分析|知识点|答案|解析|错误\d+|第\d+空)[^*]*\*\*[：:])/g,
+      '\n\n$1'
+    )
+    .replace(/\s+-\s+([A-D][.、]\s*)/g, '\n- $1')
+    .replace(/\s+(\d+[.、]\s+)/g, '\n$1');
+
+  const lines = normalizedExplanation
     .replace(/\r\n/g, '\n')
     .split('\n')
     .map((line) => line.trimEnd());
