@@ -1,0 +1,277 @@
+import { createContext, useContext, useCallback, useState, useRef, useEffect } from 'react';
+import type { WrongAnswer, StudyStats } from '@/types';
+import { api } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
+
+// ===== Types =====
+export interface UserDataState {
+  wrongAnswers: WrongAnswer[];
+  studyStats: StudyStats;
+  memoryStatus: Record<number, string>;
+  examHistory: unknown[];
+}
+
+interface UserDataContextType {
+  data: UserDataState;
+  updateWrongAnswers: (updater: (prev: WrongAnswer[]) => WrongAnswer[]) => void;
+  updateStudyStats: (updater: (prev: StudyStats) => StudyStats) => void;
+  updateMemoryStatus: (updater: (prev: Record<number, string>) => Record<number, string>) => void;
+  updateExamHistory: (updater: (prev: unknown[]) => unknown[]) => void;
+  setUserData: (data: Partial<UserDataState>) => void;
+  isLoading: boolean;
+  isSynced: boolean;
+}
+
+// ===== Default values =====
+const defaultStudyStats: StudyStats = {
+  totalAnswered: 0,
+  totalCorrect: 0,
+  correctRate: 0,
+  streakDays: 0,
+  lastStudyDate: '',
+  byType: [
+    { type: 'single', answered: 0, correct: 0 },
+    { type: 'fill', answered: 0, correct: 0 },
+    { type: 'codeFill', answered: 0, correct: 0 },
+    { type: 'codeFix', answered: 0, correct: 0 },
+    { type: 'ai', answered: 0, correct: 0 },
+  ],
+  byCategory: [],
+  dailyActivity: [],
+  weakAreas: [],
+};
+
+const defaultData: UserDataState = {
+  wrongAnswers: [],
+  studyStats: defaultStudyStats,
+  memoryStatus: {},
+  examHistory: [],
+};
+
+function normalizeStudyStats(stats: Partial<StudyStats> | null | undefined): StudyStats {
+  return {
+    ...defaultStudyStats,
+    ...(stats || {}),
+    byType: Array.isArray(stats?.byType) ? stats.byType : defaultStudyStats.byType,
+    byCategory: Array.isArray(stats?.byCategory) ? stats.byCategory : defaultStudyStats.byCategory,
+    dailyActivity: Array.isArray(stats?.dailyActivity) ? stats.dailyActivity : defaultStudyStats.dailyActivity,
+    weakAreas: Array.isArray(stats?.weakAreas) ? stats.weakAreas : defaultStudyStats.weakAreas,
+  };
+}
+
+function normalizeUserData(data: Partial<UserDataState> | null | undefined): UserDataState {
+  return {
+    wrongAnswers: Array.isArray(data?.wrongAnswers) ? data.wrongAnswers : defaultData.wrongAnswers,
+    studyStats: normalizeStudyStats(data?.studyStats),
+    memoryStatus: data?.memoryStatus && typeof data.memoryStatus === 'object' ? data.memoryStatus : defaultData.memoryStatus,
+    examHistory: Array.isArray(data?.examHistory) ? data.examHistory : defaultData.examHistory,
+  };
+}
+
+// ===== Keys for localStorage (cache) =====
+const LS_DATA_KEY = 'seanyan_user_data_cache';
+
+// ===== Context =====
+const UserDataContext = createContext<UserDataContextType | null>(null);
+
+// ===== Helper: load from localStorage cache =====
+function loadFromCache(): UserDataState {
+  try {
+    const raw = localStorage.getItem(LS_DATA_KEY);
+    if (raw) return normalizeUserData(JSON.parse(raw));
+  } catch { /* ignore */ }
+  return { ...defaultData };
+}
+
+// ===== Helper: save to localStorage cache =====
+function saveToCache(data: UserDataState) {
+  try {
+    localStorage.setItem(LS_DATA_KEY, JSON.stringify(data));
+  } catch { /* ignore */ }
+}
+
+// ===== Provider =====
+export function UserDataProvider({ children }: { children: React.ReactNode }) {
+  const { authState } = useAuth();
+  const userId = authState.user?.id;
+
+  const [data, setDataState] = useState<UserDataState>(loadFromCache);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSynced, setIsSynced] = useState(false);
+
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ===== Load from server on login =====
+  useEffect(() => {
+    if (!userId) {
+      setIsSynced(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoading(true);
+
+    api.getUserData(userId)
+      .then((serverData) => {
+        if (cancelled) return;
+
+        const parsed: Partial<UserDataState> = {};
+        try {
+          if (serverData.wrong_answers) parsed.wrongAnswers = JSON.parse(serverData.wrong_answers as string);
+        } catch { /* ignore */ }
+        try {
+          if (serverData.study_stats) parsed.studyStats = JSON.parse(serverData.study_stats as string);
+        } catch { /* ignore */ }
+        try {
+          if (serverData.memory_status) parsed.memoryStatus = JSON.parse(serverData.memory_status as string);
+        } catch { /* ignore */ }
+        try {
+          if (serverData.exam_history) parsed.examHistory = JSON.parse(serverData.exam_history as string);
+        } catch { /* ignore */ }
+
+        // Check if server has meaningful data
+        const hasServerData = (
+          (parsed.wrongAnswers && (parsed.wrongAnswers as WrongAnswer[]).length > 0) ||
+          (parsed.studyStats && (parsed.studyStats as StudyStats).totalAnswered > 0) ||
+          (parsed.memoryStatus && Object.keys(parsed.memoryStatus).length > 0) ||
+          (parsed.examHistory && (parsed.examHistory as unknown[]).length > 0)
+        );
+
+        // Merge: server data takes priority, but keep local data if server has none
+        setDataState((prev) => {
+          const current = normalizeUserData(prev);
+          const merged = normalizeUserData({
+            wrongAnswers: parsed.wrongAnswers && (parsed.wrongAnswers as WrongAnswer[]).length > 0
+              ? parsed.wrongAnswers as WrongAnswer[]
+              : current.wrongAnswers,
+            studyStats: parsed.studyStats && (parsed.studyStats as StudyStats).totalAnswered > 0
+              ? parsed.studyStats as StudyStats
+              : current.studyStats,
+            memoryStatus: parsed.memoryStatus && Object.keys(parsed.memoryStatus).length > 0
+              ? parsed.memoryStatus as Record<number, string>
+              : current.memoryStatus,
+            examHistory: parsed.examHistory && (parsed.examHistory as unknown[]).length > 0
+              ? parsed.examHistory as unknown[]
+              : current.examHistory,
+          });
+          saveToCache(merged);
+
+          // If server has no data but local cache has meaningful data, sync to server
+          if (!hasServerData) {
+            const localHasData = (
+              current.wrongAnswers.length > 0 ||
+              current.studyStats.totalAnswered > 0 ||
+              Object.keys(current.memoryStatus).length > 0 ||
+              current.examHistory.length > 0
+            );
+            if (localHasData) {
+              setTimeout(() => {
+                if (!cancelled) {
+                  syncToServer(merged);
+                }
+              }, 100);
+            }
+          }
+
+          return merged;
+        });
+        setIsSynced(true);
+      })
+      .catch(() => {
+        // Server unavailable, use local cache
+        if (!cancelled) setIsSynced(false);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  // ===== Sync to server =====
+  const syncToServer = useCallback((newData: UserDataState) => {
+    if (!userId) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+
+    syncTimer.current = setTimeout(() => {
+      api.saveUserData(userId, {
+        wrong_answers: newData.wrongAnswers,
+        study_stats: newData.studyStats,
+        memory_status: newData.memoryStatus,
+        exam_history: newData.examHistory,
+      }).then(() => {
+        setIsSynced(true);
+      }).catch(() => {
+        setIsSynced(false);
+      });
+    }, 800);
+  }, [userId]);
+
+  // ===== Update helpers =====
+  const setUserData = useCallback((partial: Partial<UserDataState>) => {
+    setDataState((prev) => {
+      const next = { ...prev, ...partial };
+      saveToCache(next);
+      syncToServer(next);
+      return next;
+    });
+  }, [syncToServer]);
+
+  const updateWrongAnswers = useCallback((updater: (prev: WrongAnswer[]) => WrongAnswer[]) => {
+    setDataState((prev) => {
+      const next = { ...prev, wrongAnswers: updater(prev.wrongAnswers) };
+      saveToCache(next);
+      syncToServer(next);
+      return next;
+    });
+  }, [syncToServer]);
+
+  const updateStudyStats = useCallback((updater: (prev: StudyStats) => StudyStats) => {
+    setDataState((prev) => {
+      const next = { ...prev, studyStats: updater(prev.studyStats) };
+      saveToCache(next);
+      syncToServer(next);
+      return next;
+    });
+  }, [syncToServer]);
+
+  const updateMemoryStatus = useCallback((updater: (prev: Record<number, string>) => Record<number, string>) => {
+    setDataState((prev) => {
+      const next = { ...prev, memoryStatus: updater(prev.memoryStatus) };
+      saveToCache(next);
+      syncToServer(next);
+      return next;
+    });
+  }, [syncToServer]);
+
+  const updateExamHistory = useCallback((updater: (prev: unknown[]) => unknown[]) => {
+    setDataState((prev) => {
+      const next = { ...prev, examHistory: updater(prev.examHistory) };
+      saveToCache(next);
+      syncToServer(next);
+      return next;
+    });
+  }, [syncToServer]);
+
+  return (
+    <UserDataContext.Provider value={{
+      data,
+      updateWrongAnswers,
+      updateStudyStats,
+      updateMemoryStatus,
+      updateExamHistory,
+      setUserData,
+      isLoading,
+      isSynced,
+    }}>
+      {children}
+    </UserDataContext.Provider>
+  );
+}
+
+// ===== Hook =====
+export function useUserData() {
+  const ctx = useContext(UserDataContext);
+  if (!ctx) throw new Error('useUserData must be used within UserDataProvider');
+  return ctx;
+}

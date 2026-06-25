@@ -1,0 +1,468 @@
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import type { QuestionType, Difficulty } from '@/types';
+import { useQuestions } from '@/hooks/useQuestions';
+import { useWrongBook } from '@/hooks/useWrongBook';
+import { useStudyStats } from '@/hooks/useStudyStats';
+import FilterPanel from '@/components/practice/FilterPanel';
+import QuestionCard from '@/components/practice/QuestionCard';
+import ExplanationPanel from '@/components/practice/ExplanationPanel';
+import QuestionNavigator from '@/components/practice/QuestionNavigator';
+import BottomNav from '@/components/practice/BottomNav';
+import PracticeResult from '@/components/practice/PracticeResult';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { usePracticeProgress, type PracticeProgress } from '@/hooks/usePracticeProgress';
+
+type AnswerState = 'unanswered' | 'correct' | 'wrong' | 'skipped';
+
+export default function Practice() {
+  const { questions, categories, loading } = useQuestions();
+  const { addWrongAnswer } = useWrongBook();
+  const { recordAnswer } = useStudyStats();
+  const { save, saveImmediate, getSavedProgress, clearProgress } = usePracticeProgress();
+  const hasCheckedResume = useRef(false);
+  const hasResumed = useRef(false);
+  const isRestoring = useRef(false);
+
+  // Filter states
+  const [selectedType, setSelectedType] = useState<QuestionType | 'all'>('all');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | 'all'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Practice states
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+  const [answerStates, setAnswerStates] = useState<AnswerState[]>([]);
+  const [userAnswers, setUserAnswers] = useState<Record<number, string | null>>({});
+  const [results, setResults] = useState<Record<number, boolean>>({});
+  const [showResult, setShowResult] = useState(false);
+  const [showFinishDialog, setShowFinishDialog] = useState(false);
+  const [direction, setDirection] = useState(1);
+  const [pendingProgress, setPendingProgress] = useState<PracticeProgress | null>(null);
+
+  // Filtered questions
+  const filteredQuestions = useMemo(() => {
+    let filtered = [...questions];
+
+    if (selectedType !== 'all') {
+      filtered = filtered.filter((q) => q.type === selectedType);
+    }
+    if (selectedDifficulty !== 'all') {
+      filtered = filtered.filter((q) => q.difficulty === selectedDifficulty);
+    }
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter((q) => q.category === selectedCategory);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (item) =>
+          item.content.toLowerCase().includes(q) ||
+          item.tags.some((t) => t.toLowerCase().includes(q))
+      );
+    }
+    return filtered;
+  }, [questions, selectedType, selectedDifficulty, selectedCategory, searchQuery]);
+
+  // Initialize answer states when filtered questions change
+  useEffect(() => {
+    if (isRestoring.current) return;
+    setAnswerStates(new Array(filteredQuestions.length).fill('unanswered'));
+    setCurrentIndex(0);
+    setSelectedAnswer(null);
+    setSubmitted(false);
+    setUserAnswers({});
+    setResults({});
+    setShowResult(false);
+  }, [filteredQuestions.length, selectedType, selectedDifficulty, selectedCategory]);
+
+  // Restore saved practice progress once questions and user data are ready.
+  useEffect(() => {
+    if (loading || questions.length === 0 || hasCheckedResume.current) return;
+    hasCheckedResume.current = true;
+
+    const progress = getSavedProgress();
+    if (!progress) {
+      hasResumed.current = true;
+      return;
+    }
+
+    setPendingProgress(progress);
+    isRestoring.current = true;
+    setSelectedType(progress.filters.type);
+    setSelectedDifficulty(progress.filters.difficulty);
+    setSelectedCategory(progress.filters.category);
+    setSearchQuery(progress.filters.searchQuery || '');
+  }, [loading, questions.length, getSavedProgress]);
+
+  useEffect(() => {
+    if (!pendingProgress || filteredQuestions.length === 0) return;
+
+    const restoredIndex = Math.min(
+      Math.max(pendingProgress.currentIndex || 0, 0),
+      filteredQuestions.length - 1
+    );
+    const restoredStates = [...(pendingProgress.answerStates || [])];
+    while (restoredStates.length < filteredQuestions.length) {
+      restoredStates.push('unanswered');
+    }
+
+    setAnswerStates(restoredStates.slice(0, filteredQuestions.length));
+    setUserAnswers(pendingProgress.userAnswers || {});
+    setResults(pendingProgress.results || {});
+    setCurrentIndex(restoredIndex);
+    setSelectedAnswer(pendingProgress.userAnswers?.[restoredIndex] || null);
+    setSubmitted(restoredStates[restoredIndex] !== 'unanswered');
+    setShowResult(false);
+    setPendingProgress(null);
+    isRestoring.current = false;
+    hasResumed.current = true;
+  }, [pendingProgress, filteredQuestions.length]);
+
+  const currentQuestion = filteredQuestions[currentIndex];
+
+  useEffect(() => {
+    if (!hasResumed.current || !currentQuestion || showResult) return;
+    save(
+      currentQuestion.id,
+      currentIndex,
+      {
+        type: selectedType,
+        difficulty: selectedDifficulty,
+        category: selectedCategory,
+        searchQuery,
+        source: 'all',
+      },
+      userAnswers,
+      answerStates,
+      results
+    );
+  }, [
+    currentQuestion,
+    currentIndex,
+    selectedType,
+    selectedDifficulty,
+    selectedCategory,
+    searchQuery,
+    userAnswers,
+    answerStates,
+    results,
+    showResult,
+    save,
+  ]);
+
+  const handleSelectAnswer = useCallback((answer: string) => {
+    if (!submitted) {
+      setSelectedAnswer(answer);
+    }
+  }, [submitted]);
+
+  // Helper: extract answer letter from various formats
+  const extractAnswerLetter = (answer: string): string => {
+    const trimmed = answer.trim();
+    if (/^[A-D]$/i.test(trimmed)) return trimmed.toUpperCase();
+    const match = trimmed.match(/^([A-D])[.\s]/i);
+    if (match) return match[1].toUpperCase();
+    return trimmed.toUpperCase();
+  };
+
+  const handleSubmit = useCallback(() => {
+    if (!currentQuestion || !selectedAnswer) return;
+
+    const correctAnswer = Array.isArray(currentQuestion.answer)
+      ? currentQuestion.answer[0]
+      : currentQuestion.answer;
+
+    const isCorrect =
+      currentQuestion.type === 'single'
+        ? extractAnswerLetter(selectedAnswer) === extractAnswerLetter(correctAnswer)
+        : selectedAnswer.trim().toLowerCase() === correctAnswer.toLowerCase();
+
+    setSubmitted(true);
+    setResults((prev) => ({ ...prev, [currentIndex]: isCorrect }));
+    setUserAnswers((prev) => ({ ...prev, [currentIndex]: selectedAnswer }));
+
+    setAnswerStates((prev) => {
+      const next = [...prev];
+      next[currentIndex] = isCorrect ? 'correct' : 'wrong';
+      return next;
+    });
+
+    // Record stats
+    recordAnswer(
+      {
+        questionId: currentQuestion.id,
+        userAnswer: selectedAnswer,
+        isCorrect,
+        answeredAt: new Date().toISOString(),
+        timeSpent: 0,
+      },
+      currentQuestion.type,
+      currentQuestion.category
+    );
+
+    // Add to wrong book if incorrect
+    if (!isCorrect) {
+      addWrongAnswer(
+        currentQuestion.id,
+        selectedAnswer,
+        Array.isArray(currentQuestion.answer)
+          ? currentQuestion.answer.join(' | ')
+          : currentQuestion.answer
+      );
+    }
+  }, [currentQuestion, selectedAnswer, currentIndex, recordAnswer, addWrongAnswer]);
+
+  const handleSkip = useCallback(() => {
+    setAnswerStates((prev) => {
+      const next = [...prev];
+      next[currentIndex] = 'skipped';
+      return next;
+    });
+    setUserAnswers((prev) => ({ ...prev, [currentIndex]: null }));
+    setResults((prev) => ({ ...prev, [currentIndex]: false }));
+
+    if (currentIndex < filteredQuestions.length - 1) {
+      setDirection(1);
+      setCurrentIndex((i) => i + 1);
+      setSelectedAnswer(null);
+      setSubmitted(false);
+    } else {
+      setShowResult(true);
+    }
+  }, [currentIndex, filteredQuestions.length]);
+
+  const handleNavigate = useCallback((index: number) => {
+    setDirection(index > currentIndex ? 1 : -1);
+    setCurrentIndex(index);
+    setSelectedAnswer(userAnswers[index] || null);
+    setSubmitted(answerStates[index] !== 'unanswered');
+  }, [currentIndex, userAnswers, answerStates]);
+
+  const handleNext = useCallback(() => {
+    if (currentIndex < filteredQuestions.length - 1) {
+      setDirection(1);
+      setCurrentIndex((i) => i + 1);
+      setSelectedAnswer(userAnswers[currentIndex + 1] || null);
+      setSubmitted(answerStates[currentIndex + 1] !== 'unanswered');
+    }
+  }, [currentIndex, filteredQuestions.length, userAnswers, answerStates]);
+
+  const handlePrev = useCallback(() => {
+    if (currentIndex > 0) {
+      setDirection(-1);
+      setCurrentIndex((i) => i - 1);
+      setSelectedAnswer(userAnswers[currentIndex - 1] || null);
+      setSubmitted(answerStates[currentIndex - 1] !== 'unanswered');
+    }
+  }, [currentIndex, userAnswers, answerStates]);
+
+  const handleFinish = useCallback(() => {
+    setShowFinishDialog(true);
+  }, []);
+
+  const handleConfirmFinish = useCallback(() => {
+    clearProgress();
+    setShowFinishDialog(false);
+    setShowResult(true);
+  }, [clearProgress]);
+
+  const handleRetryWrong = useCallback(() => {
+    const wrongIndices = answerStates
+      .map((s, i) => (s === 'wrong' ? i : -1))
+      .filter((i) => i !== -1);
+
+    if (wrongIndices.length > 0) {
+      // Navigate to first wrong question
+      setCurrentIndex(wrongIndices[0]);
+      setSelectedAnswer(null);
+      setSubmitted(false);
+      setShowResult(false);
+    }
+  }, [answerStates]);
+
+  const handleContinue = useCallback(() => {
+    if (currentQuestion) {
+      saveImmediate(
+        currentQuestion.id,
+        0,
+        {
+          type: selectedType,
+          difficulty: selectedDifficulty,
+          category: selectedCategory,
+          searchQuery,
+          source: 'all',
+        },
+        {},
+        new Array(filteredQuestions.length).fill('unanswered'),
+        {}
+      );
+    }
+    setShowResult(false);
+    setCurrentIndex(0);
+    setSelectedAnswer(null);
+    setSubmitted(false);
+  }, [currentQuestion, filteredQuestions.length, saveImmediate, searchQuery, selectedCategory, selectedDifficulty, selectedType]);
+
+  const correctCount = answerStates.filter((s) => s === 'correct').length;
+  const wrongCount = answerStates.filter((s) => s === 'wrong').length;
+  const skippedCount = answerStates.filter((s) => s === 'skipped').length;
+
+  if (loading) {
+    return (
+      <div className="min-h-[60dvh] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-10 h-10 border-3 border-pm-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-pm-text-secondary">加载题目中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (filteredQuestions.length === 0) {
+    return (
+      <div className="min-h-[60dvh] flex flex-col items-center justify-center">
+        <p className="text-pm-text-secondary mb-4">没有符合条件的题目</p>
+        <button
+          onClick={() => {
+            setSelectedType('all');
+            setSelectedDifficulty('all');
+            setSelectedCategory('all');
+            setSearchQuery('');
+          }}
+          className="px-4 py-2 rounded-pm-md bg-pm-primary text-white text-sm font-medium hover:bg-pm-primary-hover transition-colors"
+        >
+          重置筛选条件
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* Filter header */}
+      <FilterPanel
+        selectedType={selectedType}
+        selectedDifficulty={selectedDifficulty}
+        selectedCategory={selectedCategory}
+        searchQuery={searchQuery}
+        availableCategories={categories}
+        filteredCount={filteredQuestions.length}
+        onTypeChange={setSelectedType}
+        onDifficultyChange={setSelectedDifficulty}
+        onCategoryChange={setSelectedCategory}
+        onSearchChange={setSearchQuery}
+      />
+
+      {/* Main content */}
+      <div className="max-w-[1200px] mx-auto px-6 py-6 pb-24">
+        <div className="flex gap-6">
+          {/* Left sidebar - navigator */}
+          <div className="hidden lg:block w-[280px] shrink-0">
+            <div className="sticky top-20">
+              <QuestionNavigator
+                questions={filteredQuestions}
+                currentIndex={currentIndex}
+                answerStates={answerStates}
+                onNavigate={handleNavigate}
+              />
+            </div>
+          </div>
+
+          {/* Right content - question area */}
+          <div className="flex-1 min-w-0">
+            <AnimatePresence mode="wait" custom={direction}>
+              {currentQuestion && (
+                <motion.div
+                  key={currentQuestion.id}
+                  custom={direction}
+                  initial={{ opacity: 0, x: direction * 40 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: direction * -40 }}
+                  transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+                >
+                  <QuestionCard
+                    question={currentQuestion}
+                    selectedAnswer={selectedAnswer}
+                    submitted={submitted}
+                    onSelectAnswer={handleSelectAnswer}
+                    onSubmit={handleSubmit}
+                    onSkip={handleSkip}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Explanation panel */}
+            <AnimatePresence>
+              {submitted && currentQuestion && (
+                <ExplanationPanel
+                  question={currentQuestion}
+                  isCorrect={results[currentIndex] || false}
+                  userAnswer={userAnswers[currentIndex] || null}
+                  onNext={() => {
+                    if (currentIndex < filteredQuestions.length - 1) {
+                      handleNext();
+                    } else {
+                      setShowResult(true);
+                    }
+                  }}
+                />
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom navigation */}
+      <BottomNav
+        currentIndex={currentIndex}
+        total={filteredQuestions.length}
+        hasAnswer={!!selectedAnswer}
+        submitted={submitted}
+        isFirst={currentIndex === 0}
+        isLast={currentIndex === filteredQuestions.length - 1}
+        onPrev={handlePrev}
+        onNext={handleNext}
+        onFinish={handleFinish}
+        onShowResult={() => setShowResult(true)}
+      />
+
+      {/* Finish dialog */}
+      <AlertDialog open={showFinishDialog} onOpenChange={setShowFinishDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>结束练习</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要结束当前练习吗？已作答 {answerStates.filter((s) => s !== 'unanswered').length} / {filteredQuestions.length} 题
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>继续练习</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmFinish}>查看报告</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Practice result modal */}
+      <AnimatePresence>
+        {showResult && (
+          <PracticeResult
+            total={filteredQuestions.length}
+            correct={correctCount}
+            wrong={wrongCount}
+            skipped={skippedCount}
+            onRetryWrong={handleRetryWrong}
+            onContinue={handleContinue}
+          />
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
