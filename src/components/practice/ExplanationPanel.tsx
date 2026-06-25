@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion';
 import {
-  AlertTriangle,
   ArrowRight,
   BookOpen,
   Check,
@@ -8,7 +7,6 @@ import {
   Code2,
   Lightbulb,
   ListChecks,
-  Target,
   X,
   XCircle,
 } from 'lucide-react';
@@ -223,7 +221,6 @@ export default function ExplanationPanel({
     ? question.answer.join(' | ')
     : question.answer;
   const sections = splitExplanation(question.explanation || '');
-  const memoryTags = (question.tags || []).slice(0, 3);
 
   return (
     <motion.div
@@ -294,34 +291,6 @@ export default function ExplanationPanel({
               <BookOpen className="w-4 h-4 text-pm-primary" />
               解析
             </h4>
-
-            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-pm-md border border-pm-border-color bg-pm-bg-primary p-3">
-                <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-pm-primary">
-                  <Target className="h-3.5 w-3.5" />
-                  先记结论
-                </div>
-                <p className="text-sm font-medium text-pm-text-primary">{answerDisplay}</p>
-              </div>
-              <div className="rounded-pm-md border border-pm-border-color bg-pm-bg-primary p-3">
-                <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-pm-orange">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  再防混淆
-                </div>
-                <p className="text-sm text-pm-text-secondary">
-                  {isCorrect ? '对照错误选项，确认为什么不是它们。' : '重点看你的答案和正确答案差在哪里。'}
-                </p>
-              </div>
-              <div className="rounded-pm-md border border-pm-border-color bg-pm-bg-primary p-3">
-                <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-pm-success">
-                  <Lightbulb className="h-3.5 w-3.5" />
-                  最后留钩子
-                </div>
-                <p className="text-sm text-pm-text-secondary">
-                  {memoryTags.length > 0 ? memoryTags.join(' / ') : question.category}
-                </p>
-              </div>
-            </div>
 
             <div className="space-y-3">
               {sections.map((section, index) => {
