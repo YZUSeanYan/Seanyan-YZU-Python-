@@ -65,7 +65,7 @@ function getSectionStyle(title: string) {
 function splitExplanation(explanation: string): ExplanationSection[] {
   const normalizedExplanation = explanation
     .replace(
-      /\s*(\*\*(?:正确答案|错误选项分析|知识点延伸|代码逐行分析|代码执行过程|详细计算过程|详细分析|其他.*?分析|知识点|答案|解析|错误\d+|第\d+空)[^*]*\*\*[：:])/g,
+      /\s*(\*\*(?:正确答案|错误选项分析|知识点延伸|代码逐行分析|代码执行过程|详细计算过程|详细分析|其他.*?分析|知识点|答案|解析|错误\d+|第\d+空)[^*]*\*\*(?:[^：:\n]{0,40})?[：:])/g,
       '\n\n$1'
     )
     .replace(/\s+-\s+([A-D][.、]\s*)/g, '\n- $1')
@@ -92,11 +92,11 @@ function splitExplanation(explanation: string): ExplanationSection[] {
       return;
     }
 
-    const heading = !inCodeBlock && line.trim().match(/^\*\*(.+?)\*\*[：:]\s*(.*)$/);
+    const heading = !inCodeBlock && line.trim().match(/^\*\*(.+?)\*\*([^：:\n]{0,40})?[：:]\s*(.*)$/);
     if (heading) {
       pushCurrent();
-      current = { title: heading[1].trim(), content: [] };
-      if (heading[2]) current.content.push(heading[2].trim());
+      current = { title: `${heading[1]}${heading[2] || ''}`.trim(), content: [] };
+      if (heading[3]) current.content.push(heading[3].trim());
       return;
     }
 
