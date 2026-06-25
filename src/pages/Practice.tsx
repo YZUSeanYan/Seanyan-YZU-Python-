@@ -12,6 +12,7 @@ import BottomNav from '@/components/practice/BottomNav';
 import PracticeResult from '@/components/practice/PracticeResult';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { usePracticeProgress, type PracticeProgress } from '@/hooks/usePracticeProgress';
+import { playErrorBuzz, playFinish, playNext, playSelect, playSuccessChime } from '@/lib/sound';
 
 type AnswerState = 'unanswered' | 'correct' | 'wrong' | 'skipped';
 
@@ -161,6 +162,7 @@ export default function Practice() {
 
   const handleSelectAnswer = useCallback((answer: string) => {
     if (!submitted) {
+      playSelect();
       setSelectedAnswer(answer);
     }
   }, [submitted]);
@@ -174,17 +176,32 @@ export default function Practice() {
     return trimmed.toUpperCase();
   };
 
+  const isAnswerCorrect = useCallback((answer: string) => {
+    if (!currentQuestion) return false;
+    if (currentQuestion.type === 'single') {
+      const correctAnswer = Array.isArray(currentQuestion.answer)
+        ? currentQuestion.answer[0]
+        : currentQuestion.answer;
+      return extractAnswerLetter(answer) === extractAnswerLetter(correctAnswer);
+    }
+    if (Array.isArray(currentQuestion.answer)) {
+      const answerParts = answer.split('|').map((part) => part.trim().toLowerCase());
+      return currentQuestion.answer.every(
+        (part, index) => answerParts[index] === String(part).trim().toLowerCase()
+      );
+    }
+    return answer.trim().toLowerCase() === currentQuestion.answer.toLowerCase();
+  }, [currentQuestion]);
+
   const handleSubmit = useCallback(() => {
     if (!currentQuestion || !selectedAnswer) return;
 
-    const correctAnswer = Array.isArray(currentQuestion.answer)
-      ? currentQuestion.answer[0]
-      : currentQuestion.answer;
-
-    const isCorrect =
-      currentQuestion.type === 'single'
-        ? extractAnswerLetter(selectedAnswer) === extractAnswerLetter(correctAnswer)
-        : selectedAnswer.trim().toLowerCase() === correctAnswer.toLowerCase();
+    const isCorrect = isAnswerCorrect(selectedAnswer);
+    if (isCorrect) {
+      playSuccessChime();
+    } else {
+      playErrorBuzz();
+    }
 
     setSubmitted(true);
     setResults((prev) => ({ ...prev, [currentIndex]: isCorrect }));
@@ -219,9 +236,10 @@ export default function Practice() {
           : currentQuestion.answer
       );
     }
-  }, [currentQuestion, selectedAnswer, currentIndex, recordAnswer, addWrongAnswer]);
+  }, [currentQuestion, selectedAnswer, currentIndex, isAnswerCorrect, recordAnswer, addWrongAnswer]);
 
   const handleSkip = useCallback(() => {
+    playNext();
     setAnswerStates((prev) => {
       const next = [...prev];
       next[currentIndex] = 'skipped';
@@ -242,6 +260,7 @@ export default function Practice() {
   }, [currentIndex, filteredQuestions.length]);
 
   const handleNavigate = useCallback((index: number) => {
+    playNext();
     setDirection(index > currentIndex ? 1 : -1);
     setCurrentIndex(index);
     setSelectedAnswer(userAnswers[index] || null);
@@ -251,6 +270,7 @@ export default function Practice() {
 
   const handleNext = useCallback(() => {
     if (currentIndex < filteredQuestions.length - 1) {
+      playNext();
       setDirection(1);
       setCurrentIndex((i) => i + 1);
       setSelectedAnswer(userAnswers[currentIndex + 1] || null);
@@ -261,6 +281,7 @@ export default function Practice() {
 
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
+      playNext();
       setDirection(-1);
       setCurrentIndex((i) => i - 1);
       setSelectedAnswer(userAnswers[currentIndex - 1] || null);
@@ -274,6 +295,7 @@ export default function Practice() {
   }, []);
 
   const handleConfirmFinish = useCallback(() => {
+    playFinish();
     clearProgress();
     setShowFinishDialog(false);
     setShowResult(true);
@@ -285,6 +307,7 @@ export default function Practice() {
       .filter((i) => i !== -1);
 
     if (wrongIndices.length > 0) {
+      playNext();
       // Navigate to first wrong question
       setCurrentIndex(wrongIndices[0]);
       setSelectedAnswer(null);
@@ -312,6 +335,7 @@ export default function Practice() {
       );
     }
     setShowResult(false);
+    playNext();
     setCurrentIndex(0);
     setSelectedAnswer(null);
     setSubmitted(false);
