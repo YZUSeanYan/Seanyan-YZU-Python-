@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogIn, Lock } from 'lucide-react';
-import { useQuestions } from '@/hooks/useQuestions';
+import { BookOpen, FileText, LogIn, Lock, Play } from 'lucide-react';
 import { useStudyStats } from '@/hooks/useStudyStats';
 import { useWrongBook } from '@/hooks/useWrongBook';
 import { useAuth } from '@/hooks/useAuth';
 import type { Question, QuestionType, ExamRecord } from '@/types';
+import { useExamPapers, type ExamPaper } from '@/hooks/useExamPapers';
 import ExamHeader from '@/components/simexam/ExamHeader';
 import ExamSidebar from '@/components/simexam/ExamSidebar';
 import QuestionPanel from '@/components/simexam/QuestionPanel';
@@ -24,27 +24,59 @@ interface ExamSection {
   questions: Question[];
 }
 
-type ExamPhase = 'rules' | 'in-progress' | 'submitted';
+type ExamPhase = 'select-paper' | 'rules' | 'in-progress' | 'submitted';
 type ActiveTab = 'rules' | 'search' | 'helper';
-
-const SECTION_COUNTS: { type: QuestionType; label: string; count: number }[] = [
-  { type: 'single', label: '选择题', count: 32 },
-  { type: 'fill', label: '填空题', count: 20 },
-  { type: 'codeFix', label: '程序改错', count: 3 },
-  { type: 'codeFill', label: '程序填空', count: 5 },
-];
 
 const TOTAL_TIME_MINUTES = 120;
 const SEAT_NUMBER = '01';
+const typeLabels: Record<QuestionType, string> = {
+  single: '选择题',
+  fill: '填空题',
+  codeFix: '程序改错',
+  codeFill: '程序填空',
+};
+const typeOrder: QuestionType[] = ['single', 'fill', 'codeFix', 'codeFill'];
+
+function buildSections(paper: ExamPaper): ExamSection[] {
+  return typeOrder
+    .map((type) => {
+      const questions = paper.questions.filter((question) => question.type === type);
+      return {
+        type,
+        label: typeLabels[type],
+        count: questions.length,
+        questions,
+      };
+    })
+    .filter((section) => section.questions.length > 0);
+}
+
+function normalizeAnswer(answer: string) {
+  const trimmed = answer.trim();
+  const match = trimmed.match(/^([A-D])[.\s]?/i);
+  return match ? match[1].toUpperCase() : trimmed.toLowerCase();
+}
+
+function isQuestionCorrect(question: Question, answer?: string) {
+  if (!answer) return false;
+  const correctAnswer = Array.isArray(question.answer) ? question.answer : [question.answer];
+  if (question.type === 'single') return normalizeAnswer(answer) === normalizeAnswer(String(correctAnswer[0]));
+  if (Array.isArray(question.answer)) {
+    const answerParts = answer.split('|').map((part) => part.trim().toLowerCase());
+    return question.answer.every((part, index) => answerParts[index] === String(part).trim().toLowerCase());
+  }
+  return answer.trim().toLowerCase() === String(correctAnswer[0]).trim().toLowerCase();
+}
 
 export default function SimExam() {
   const navigate = useNavigate();
-  const { questions, loading, getRandomQuestions } = useQuestions();
+  const { papers, loading, error } = useExamPapers();
   const { recordAnswer } = useStudyStats();
   const { addWrongAnswer } = useWrongBook();
   const { authState, getCurrentUser, getUserData, saveUserData } = useAuth();
 
-  const [phase, setPhase] = useState<ExamPhase>('rules');
+  const [phase, setPhase] = useState<ExamPhase>('select-paper');
+  const [selectedPaper, setSelectedPaper] = useState<ExamPaper | null>(null);
   const [sections, setSections] = useState<ExamSection[]>([]);
   const [activeSectionIdx, setActiveSectionIdx] = useState(0);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
@@ -57,19 +89,6 @@ export default function SimExam() {
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Initialize exam sections with random questions
-  useEffect(() => {
-    if (!questions.length || sections.length > 0) return;
-
-    const newSections: ExamSection[] = SECTION_COUNTS.map((cfg) => ({
-      type: cfg.type,
-      label: cfg.label,
-      count: cfg.count,
-      questions: getRandomQuestions(cfg.count, cfg.type),
-    }));
-    setSections(newSections);
-  }, [questions, sections.length, getRandomQuestions]);
 
   // Countdown timer
   useEffect(() => {
@@ -120,6 +139,20 @@ export default function SimExam() {
 
   const handleStartExam = useCallback(() => {
     setPhase('in-progress');
+    setActiveTab('rules');
+  }, []);
+
+  const handleSelectPaper = useCallback((paper: ExamPaper) => {
+    setSelectedPaper(paper);
+    setSections(buildSections(paper));
+    setAnswers({});
+    setActiveSectionIdx(0);
+    setCurrentQuestionIdx(0);
+    setTimeRemaining((paper.durationMinutes || TOTAL_TIME_MINUTES) * 60);
+    setIsTimeUp(false);
+    setScore(0);
+    setCorrectCount(0);
+    setPhase('rules');
     setActiveTab('rules');
   }, []);
 
@@ -175,15 +208,8 @@ export default function SimExam() {
       section.questions.forEach((q) => {
         const ans = answers[q.id];
         if (ans) {
-          const correctAnswer = Array.isArray(q.answer) ? q.answer[0] : q.answer;
-          // Helper to extract answer letter from formats like 'A. xxx' or 'A'
-          const extractLetter = (s: string) => {
-            const m = s.trim().match(/^([A-D])[.\s]/i);
-            return m ? m[1].toUpperCase() : s.trim().toUpperCase();
-          };
-          const isCorrect = q.type === 'single'
-            ? extractLetter(ans) === extractLetter(correctAnswer)
-            : ans.trim().toLowerCase() === correctAnswer.toLowerCase();
+          const correctAnswer = Array.isArray(q.answer) ? q.answer.join(' | ') : q.answer;
+          const isCorrect = isQuestionCorrect(q, ans);
           if (isCorrect) {
             correct++;
             sectionCorrect++;
@@ -227,7 +253,7 @@ export default function SimExam() {
         score: totalScore,
         totalQuestions,
         correctCount: correct,
-        timeSpent: TOTAL_TIME_MINUTES * 60 - timeRemaining,
+        timeSpent: (selectedPaper?.durationMinutes || TOTAL_TIME_MINUTES) * 60 - timeRemaining,
         byType,
       };
       const updatedExamHistory = [examRecord, ...userData.examHistory];
@@ -236,7 +262,7 @@ export default function SimExam() {
         examHistory: updatedExamHistory,
       });
     }
-  }, [sections, answers, totalQuestions, recordAnswer, addWrongAnswer, getCurrentUser, getUserData, saveUserData, timeRemaining]);
+  }, [sections, answers, totalQuestions, selectedPaper, recordAnswer, addWrongAnswer, getCurrentUser, getUserData, saveUserData, timeRemaining]);
 
   const formatTime = useCallback((seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -275,13 +301,102 @@ export default function SimExam() {
     );
   }
 
-  if (loading || sections.length === 0) {
+  if (loading) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center bg-[#F5F5F0]">
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-2 border-pm-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-pm-text-secondary">正在加载考试题目...</p>
+          <p className="text-sm text-pm-text-secondary">正在加载三套仿真试卷...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (phase === 'select-paper') {
+    return (
+      <div className="min-h-[100dvh] bg-[#F5F5F0] px-6 py-10">
+        <div className="mx-auto max-w-[1080px]">
+          <div className="mb-8">
+            <h1 className="text-[26px] font-bold text-pm-text-primary">仿真考试</h1>
+            <p className="mt-2 text-sm text-pm-text-secondary">
+              请选择一套固定试卷开始考试。题目、答案和解析来自上传的三套 Word 试卷。
+            </p>
+          </div>
+
+          {error && (
+            <div className="mb-5 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#B91C1C]">
+              试卷加载失败：{error}
+            </div>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {papers.map((paper, index) => {
+              const total = paper.questions.length;
+              const single = paper.counts.single || 0;
+              const fill = paper.counts.fill || 0;
+              const codeFill = paper.counts.codeFill || 0;
+              const codeFix = paper.counts.codeFix || 0;
+
+              return (
+                <motion.button
+                  key={paper.id}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.06, duration: 0.3 }}
+                  onClick={() => handleSelectPaper(paper)}
+                  className="group rounded-lg border border-[#D4D4D4] bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#0F4C81] hover:shadow-pm-md"
+                >
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-[#0F4C81]">固定试卷 {index + 1}</p>
+                      <h2 className="mt-1 text-[18px] font-semibold text-pm-text-primary">{paper.title}</h2>
+                    </div>
+                    <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#E8F1F8] text-[#0F4C81]">
+                      <FileText className="h-5 w-5" />
+                    </span>
+                  </div>
+
+                  <div className="mb-4 grid grid-cols-2 gap-2 text-sm">
+                    <div className="rounded-md bg-[#F5F7FA] px-3 py-2">
+                      <p className="text-[11px] text-pm-text-muted">总题数</p>
+                      <p className="font-semibold text-pm-text-primary">{total} 题</p>
+                    </div>
+                    <div className="rounded-md bg-[#F5F7FA] px-3 py-2">
+                      <p className="text-[11px] text-pm-text-muted">考试时长</p>
+                      <p className="font-semibold text-pm-text-primary">{paper.durationMinutes} 分钟</p>
+                    </div>
+                  </div>
+
+                  <div className="mb-5 space-y-1.5 text-[13px] text-pm-text-secondary">
+                    {single > 0 && <p>选择题：{single} 题</p>}
+                    {fill > 0 && <p>填空题：{fill} 题</p>}
+                    {codeFill > 0 && <p>程序填空：{codeFill} 题</p>}
+                    {codeFix > 0 && <p>程序改错：{codeFix} 题</p>}
+                  </div>
+
+                  <div className="flex items-center justify-between border-t border-[#E2E8F0] pt-4">
+                    <span className="flex items-center gap-1.5 text-xs text-pm-text-muted">
+                      <BookOpen className="h-3.5 w-3.5" />
+                      答后显示解析
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-[#0F4C81] px-3 py-1.5 text-xs font-medium text-white group-hover:bg-[#0D3F6B]">
+                      <Play className="h-3.5 w-3.5" />
+                      选择
+                    </span>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (sections.length === 0) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-[#F5F5F0]">
+        <p className="text-sm text-pm-text-secondary">请先选择一套试卷。</p>
       </div>
     );
   }
@@ -295,9 +410,10 @@ export default function SimExam() {
         answeredCount={answeredCount}
         sections={sections}
         answers={answers}
-        timeSpent={TOTAL_TIME_MINUTES * 60 - timeRemaining}
+        timeSpent={(selectedPaper?.durationMinutes || TOTAL_TIME_MINUTES) * 60 - timeRemaining}
         onRestart={() => {
-          setPhase('rules');
+          setPhase('select-paper');
+          setSelectedPaper(null);
           setAnswers({});
           setTimeRemaining(TOTAL_TIME_MINUTES * 60);
           setIsTimeUp(false);
@@ -369,13 +485,15 @@ export default function SimExam() {
           sections={sections}
           activeSectionIdx={activeSectionIdx}
           answers={answers}
+          studentId={authState.user?.studentId}
+          studentName={authState.user?.name}
           onSwitchSection={handleSwitchSection}
         />
 
         {/* 4. Center Question Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {activeTab === 'rules' && phase === 'rules' ? (
-            <ExamRules onStart={handleStartExam} />
+            <ExamRules onStart={handleStartExam} paperTitle={selectedPaper?.title} sections={sections} />
           ) : activeTab === 'rules' && phase === 'in-progress' ? (
             <>
               <div className="flex-1 overflow-y-auto p-6">

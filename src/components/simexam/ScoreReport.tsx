@@ -44,9 +44,15 @@ function normalizeAnswer(answer: string) {
 
 function isAnswerCorrect(question: Question, answer?: string) {
   if (!answer) return false;
-  const correctAnswer = Array.isArray(question.answer) ? question.answer[0] : question.answer;
-  if (question.type === 'single') return normalizeAnswer(answer) === normalizeAnswer(correctAnswer);
-  return answer.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+  if (question.type === 'single') {
+    const correctAnswer = Array.isArray(question.answer) ? question.answer[0] : question.answer;
+    return normalizeAnswer(answer) === normalizeAnswer(correctAnswer);
+  }
+  if (Array.isArray(question.answer)) {
+    const answerParts = answer.split('|').map((part) => part.trim().toLowerCase());
+    return question.answer.every((part, index) => answerParts[index] === String(part).trim().toLowerCase());
+  }
+  return answer.trim().toLowerCase() === question.answer.trim().toLowerCase();
 }
 
 function answerText(value: unknown) {

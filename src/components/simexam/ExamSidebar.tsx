@@ -14,6 +14,8 @@ interface ExamSidebarProps {
   sections: ExamSection[];
   activeSectionIdx: number;
   answers: Record<number, string>;
+  studentId?: string;
+  studentName?: string;
   onSwitchSection: (index: number) => void;
 }
 
@@ -24,7 +26,14 @@ const typeIcons: Record<string, React.ReactNode> = {
   'codeFill': <Code className="w-4 h-4" />,
 };
 
-export default function ExamSidebar({ sections, activeSectionIdx, answers, onSwitchSection }: ExamSidebarProps) {
+export default function ExamSidebar({
+  sections,
+  activeSectionIdx,
+  answers,
+  studentId,
+  studentName,
+  onSwitchSection,
+}: ExamSidebarProps) {
   return (
     <motion.div
       initial={{ x: -220, opacity: 0 }}
@@ -38,8 +47,8 @@ export default function ExamSidebar({ sections, activeSectionIdx, answers, onSwi
         <div className="w-[72px] h-[72px] rounded-full bg-gradient-to-br from-[#4ADE80] via-[#22C55E] to-[#16A34A] flex items-center justify-center shadow-md mb-3">
           <User className="w-9 h-9 text-white" />
         </div>
-        <p className="text-[13px] text-pm-text-primary font-mono mb-0.5">253903118</p>
-        <p className="text-[14px] text-pm-text-primary font-medium mb-0.5">严心远</p>
+        <p className="text-[13px] text-pm-text-primary font-mono mb-0.5">{studentId || '未登录'}</p>
+        <p className="text-[14px] text-pm-text-primary font-medium mb-0.5">{studentName || '考生'}</p>
         <p className="text-[12px] text-pm-text-secondary font-mono">PYTHON-1</p>
       </div>
 

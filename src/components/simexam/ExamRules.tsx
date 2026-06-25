@@ -1,11 +1,30 @@
 import { motion } from 'framer-motion';
 import { BookOpen, Clock, FileText, Edit3, Bug, Code, AlertTriangle, Play } from 'lucide-react';
+import type { Question, QuestionType } from '@/types';
+
+interface ExamSection {
+  type: QuestionType;
+  label: string;
+  count: number;
+  questions: Question[];
+}
 
 interface ExamRulesProps {
   onStart: () => void;
+  paperTitle?: string;
+  sections: ExamSection[];
 }
 
-export default function ExamRules({ onStart }: ExamRulesProps) {
+const sectionIcons: Record<string, React.ReactNode> = {
+  single: <FileText className="w-4 h-4 text-[#0F4C81]" />,
+  fill: <Edit3 className="w-4 h-4 text-[#2A9D8F]" />,
+  codeFix: <Bug className="w-4 h-4 text-[#E9A23B]" />,
+  codeFill: <Code className="w-4 h-4 text-[#6C5CE7]" />,
+};
+
+export default function ExamRules({ onStart, paperTitle, sections }: ExamRulesProps) {
+  const totalQuestions = sections.reduce((sum, section) => sum + section.questions.length, 0);
+
   return (
     <div className="flex-1 overflow-y-auto">
       <motion.div
@@ -17,7 +36,7 @@ export default function ExamRules({ onStart }: ExamRulesProps) {
         {/* Title */}
         <div className="text-center mb-8">
           <h2 className="text-[22px] font-bold text-[#0F4C81] mb-1">《人工智能及Python语言程序设计》课程考试</h2>
-          <h3 className="text-[18px] font-semibold text-[#CC0000]">考试须知</h3>
+          <h3 className="text-[18px] font-semibold text-[#CC0000]">{paperTitle || '考试须知'}</h3>
         </div>
 
         {/* Rules List */}
@@ -48,11 +67,11 @@ export default function ExamRules({ onStart }: ExamRulesProps) {
           </div>
           <div className="flex gap-3">
             <span className="text-[#0F4C81] font-semibold shrink-0">7.</span>
-            <p>本次考试题目单元共有4个，分别是"选择题"、"填空题"、"程序改错"和"程序填空"。使用"选题"按钮切换题目单元，双击选题界面中的任何题均可进入该题目单元，答完所有题目单元的题目后才可交卷。</p>
+            <p>本次考试使用固定试卷，共 {sections.length} 个题目单元。使用"选题"按钮切换题目单元，双击选题界面中的任何题均可进入该题目单元。</p>
           </div>
           <div className="flex gap-3">
             <span className="text-[#0F4C81] font-semibold shrink-0">8.</span>
-            <p>"选择题"共32小题（1分/题），"填空题"共20小题（1分/题），"程序改错"共3小题（6分/题），"程序填空"共5小题（6分/题）。答题结果系统自动保存。</p>
+            <p>本套试卷共 {totalQuestions} 题，系统按正确题数折算百分制成绩。答题结果系统自动保存。</p>
           </div>
           <div className="flex gap-3">
             <span className="text-[#0F4C81] font-semibold shrink-0">9.</span>
@@ -78,34 +97,15 @@ export default function ExamRules({ onStart }: ExamRulesProps) {
                 <p className="text-[13px] font-medium text-pm-text-primary">120分钟</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 bg-white rounded-md p-3">
-              <FileText className="w-4 h-4 text-[#0F4C81]" />
-              <div>
-                <p className="text-[11px] text-pm-text-muted">选择题</p>
-                <p className="text-[13px] font-medium text-pm-text-primary">32题（1分/题）</p>
+            {sections.map((section) => (
+              <div key={section.type} className="flex items-center gap-2 bg-white rounded-md p-3">
+                {sectionIcons[section.type] || <FileText className="w-4 h-4 text-[#0F4C81]" />}
+                <div>
+                  <p className="text-[11px] text-pm-text-muted">{section.label}</p>
+                  <p className="text-[13px] font-medium text-pm-text-primary">{section.questions.length} 题</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2 bg-white rounded-md p-3">
-              <Edit3 className="w-4 h-4 text-[#2A9D8F]" />
-              <div>
-                <p className="text-[11px] text-pm-text-muted">填空题</p>
-                <p className="text-[13px] font-medium text-pm-text-primary">20题（1分/题）</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 bg-white rounded-md p-3">
-              <Bug className="w-4 h-4 text-[#E9A23B]" />
-              <div>
-                <p className="text-[11px] text-pm-text-muted">程序改错</p>
-                <p className="text-[13px] font-medium text-pm-text-primary">3题（6分/题）</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 bg-white rounded-md p-3 col-span-2">
-              <Code className="w-4 h-4 text-[#6C5CE7]" />
-              <div>
-                <p className="text-[11px] text-pm-text-muted">程序填空</p>
-                <p className="text-[13px] font-medium text-pm-text-primary">5题（6分/题）= 总分 100分</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
