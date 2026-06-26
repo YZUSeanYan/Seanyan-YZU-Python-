@@ -1,21 +1,34 @@
 // Duolingo-style sound effects manager
 const SOUND_ENABLED_KEY = 'seanyan_sound_enabled';
+const SOUND_VOLUME_KEY = 'seanyan_sound_volume';
 
 function readSoundEnabled() {
   if (typeof window === 'undefined') return true;
   return window.localStorage.getItem(SOUND_ENABLED_KEY) !== 'false';
 }
 
+function readSoundVolume() {
+  if (typeof window === 'undefined') return 0.9;
+  const saved = Number(window.localStorage.getItem(SOUND_VOLUME_KEY));
+  if (!Number.isFinite(saved)) return 0.9;
+  return Math.min(1.5, Math.max(0, saved));
+}
+
 let soundEnabled = readSoundEnabled();
+let soundVolume = readSoundVolume();
 
 const soundCache: Record<string, HTMLAudioElement> = {};
 let audioContext: AudioContext | null = null;
 
+function mediaVolume() {
+  return Math.min(1, 0.7 * soundVolume);
+}
+
 function getAudio(src: string): HTMLAudioElement {
   if (!soundCache[src]) {
     soundCache[src] = new Audio(src);
-    soundCache[src].volume = 0.4;
   }
+  soundCache[src].volume = mediaVolume();
   return soundCache[src];
 }
 
@@ -53,7 +66,7 @@ function playTone(frequency: number, duration = 0.08, delay = 0, type: Oscillato
     oscillator.type = type;
     oscillator.frequency.setValueAtTime(frequency, start);
     volume.gain.setValueAtTime(0.0001, start);
-    volume.gain.exponentialRampToValueAtTime(gain, start + 0.01);
+    volume.gain.exponentialRampToValueAtTime(gain * soundVolume, start + 0.01);
     volume.gain.exponentialRampToValueAtTime(0.0001, start + duration);
 
     oscillator.connect(volume);
@@ -104,6 +117,23 @@ export function setSoundEnabled(enabled: boolean) {
 
 export function isSoundEnabled() {
   return soundEnabled;
+}
+
+export function setSoundVolume(volume: number) {
+  soundVolume = Math.min(1.5, Math.max(0, volume));
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(SOUND_VOLUME_KEY, String(soundVolume));
+    }
+    Object.values(soundCache).forEach((audio) => {
+      audio.volume = mediaVolume();
+    });
+  } catch { /* ignore */ }
+  return soundVolume;
+}
+
+export function getSoundVolume() {
+  return soundVolume;
 }
 
 export function playSoundPreview() {

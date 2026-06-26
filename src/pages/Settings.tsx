@@ -8,10 +8,11 @@ import {
   Info,
   Mail,
   Settings as SettingsIcon,
+  Volume1,
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { isSoundEnabled, playSoundPreview, setSoundEnabled } from '@/lib/sound';
+import { getSoundVolume, isSoundEnabled, playSoundPreview, setSoundEnabled, setSoundVolume } from '@/lib/sound';
 import { releaseNotes } from '@/data/releaseNotes';
 
 const githubUrl = 'https://github.com/YZUSeanYan';
@@ -19,16 +20,32 @@ const email = 'z40681992@163.com';
 
 export default function Settings() {
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
+  const [volume, setVolume] = useState(() => Math.round(getSoundVolume() * 100));
 
   useEffect(() => {
     setSoundEnabled(soundOn);
   }, [soundOn]);
 
+  useEffect(() => {
+    setSoundVolume(volume / 100);
+  }, [volume]);
+
   const handleToggleSound = () => {
     const next = !soundOn;
+    if (next && volume === 0) {
+      setVolume(90);
+      setSoundVolume(0.9);
+    }
     setSoundOn(next);
     if (next) {
       window.setTimeout(() => playSoundPreview(), 40);
+    }
+  };
+
+  const handleVolumeChange = (nextVolume: number) => {
+    setVolume(nextVolume);
+    if (!soundOn && nextVolume > 0) {
+      setSoundOn(true);
     }
   };
 
@@ -65,7 +82,7 @@ export default function Settings() {
           <section className="bg-white rounded-pm-lg border border-pm-border p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3 sm:gap-4">
               <div className="flex gap-3">
-                <div className="w-10 h-10 rounded-pm-md bg-pm-accent-light text-pm-accent flex items-center justify-center">
+                <div className="w-10 h-10 rounded-pm-md bg-pm-accent-light text-pm-accent flex items-center justify-center shrink-0">
                   {soundOn ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
                 </div>
                 <div>
@@ -78,17 +95,38 @@ export default function Settings() {
               <button
                 type="button"
                 onClick={handleToggleSound}
-                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
-                  soundOn ? 'bg-pm-primary' : 'bg-pm-neutral'
+                className={`relative h-9 w-[66px] shrink-0 overflow-hidden rounded-full border transition-all duration-300 ${
+                  soundOn
+                    ? 'border-white/60 bg-[rgba(15,76,129,0.72)] shadow-[0_10px_28px_rgba(15,76,129,0.26),inset_0_1px_0_rgba(255,255,255,0.45)]'
+                    : 'border-white/50 bg-[rgba(148,163,184,0.36)] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]'
                 }`}
+                style={{
+                  backdropFilter: 'blur(16px) saturate(150%)',
+                  WebkitBackdropFilter: 'blur(16px) saturate(150%)',
+                }}
                 aria-pressed={soundOn}
                 aria-label="切换音效"
               >
+                <span className="absolute inset-0 bg-gradient-to-br from-white/55 via-white/10 to-transparent" />
                 <span
-                  className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                    soundOn ? 'translate-x-6' : 'translate-x-1'
+                  className={`absolute inset-y-1 w-7 rounded-full border border-white/70 bg-white/86 shadow-[0_6px_18px_rgba(15,23,42,0.18),inset_0_1px_0_rgba(255,255,255,0.95)] transition-transform duration-300 ${
+                    soundOn ? 'translate-x-[31px]' : 'translate-x-1'
                   }`}
                 />
+                <span
+                  className={`absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold transition-opacity ${
+                    soundOn ? 'opacity-100 text-white' : 'opacity-0'
+                  }`}
+                >
+                  ON
+                </span>
+                <span
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold transition-opacity ${
+                    soundOn ? 'opacity-0' : 'opacity-100 text-pm-text-secondary'
+                  }`}
+                >
+                  OFF
+                </span>
               </button>
             </div>
 
@@ -104,6 +142,44 @@ export default function Settings() {
                 <Bell className="w-4 h-4" />
                 试听
               </button>
+            </div>
+
+            <div className="mt-5 rounded-pm-lg border border-white/70 bg-gradient-to-br from-white/75 via-[#F8FBFF]/80 to-[#E8F1F8]/70 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-pm-text-primary">
+                  {volume === 0 ? (
+                    <VolumeX className="h-4 w-4 text-pm-text-muted" />
+                  ) : volume < 85 ? (
+                    <Volume1 className="h-4 w-4 text-pm-primary" />
+                  ) : (
+                    <Volume2 className="h-4 w-4 text-pm-primary" />
+                  )}
+                  音量
+                </div>
+                <span className="rounded-pm-full bg-white/80 px-2.5 py-1 text-xs font-semibold text-pm-primary shadow-pm-sm">
+                  {volume}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={150}
+                step={5}
+                value={volume}
+                onChange={(event) => handleVolumeChange(Number(event.target.value))}
+                onMouseUp={() => soundOn && playSoundPreview()}
+                onTouchEnd={() => soundOn && playSoundPreview()}
+                className="sound-volume-slider w-full"
+                aria-label="音效音量"
+                style={{
+                  background: `linear-gradient(90deg, var(--pm-primary) 0%, var(--pm-primary) ${(volume / 150) * 100}%, rgba(148,163,184,0.26) ${(volume / 150) * 100}%, rgba(148,163,184,0.26) 100%)`,
+                }}
+              />
+              <div className="mt-2 flex justify-between text-[11px] text-pm-text-muted">
+                <span>静音</span>
+                <span>标准</span>
+                <span>更响</span>
+              </div>
             </div>
           </section>
 
