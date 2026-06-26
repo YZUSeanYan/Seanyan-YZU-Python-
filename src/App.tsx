@@ -13,6 +13,7 @@ import MemoryMode from './pages/MemoryMode'
 import SimExam from './pages/SimExam'
 import Login from './pages/Login'
 import Admin from './pages/Admin'
+import Settings from './pages/Settings'
 
 function RequireLogin({ children }: { children: ReactNode }) {
   const { authState } = useAuth();
@@ -44,6 +45,7 @@ export default function App() {
                   <Route path="/wrongbook" element={<WrongBook />} />
                   <Route path="/stats" element={<Stats />} />
                   <Route path="/memory" element={<MemoryMode />} />
+                  <Route path="/settings" element={<Settings />} />
                 </Routes>
               </Layout>
             </RequireLogin>

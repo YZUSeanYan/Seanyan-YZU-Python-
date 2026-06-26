@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router';
 import { motion } from 'framer-motion';
 import { PythonLogo } from './SvgAssets';
+import { releaseNotes } from '@/data/releaseNotes';
 
 const quickLinks = [
   { to: '/', label: '首页' },
@@ -8,13 +9,7 @@ const quickLinks = [
   { to: '/sim-exam', label: '模拟考试' },
   { to: '/wrongbook', label: '错题本' },
   { to: '/stats', label: '学习统计' },
-];
-
-const releaseNotes = [
-  { version: 'v22', date: '2026-06-25', text: '恢复练习进度保存与刷新后继续练习。' },
-  { version: 'v21', date: '2026-06-25', text: '新增管理后台数据恢复面板。' },
-  { version: 'v20', date: '2026-06-25', text: '增强用户详情、错题、题型掌握和近7天活动展示。' },
-  { version: 'v19', date: '2026-06-23', text: '接入服务器同步与管理员后台基础数据。' },
+  { to: '/settings', label: '设置与关于' },
 ];
 
 export default function Footer() {
@@ -65,13 +60,12 @@ export default function Footer() {
               题库信息
             </h4>
             <div className="space-y-2 text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
-              <p>题目总数：<span className="text-white font-medium">547 题</span></p>
-              <p>单选题：约 420 题</p>
-              <p>填空题：约 40 题</p>
-              <p>程序填空：约 39 题</p>
-              <p>程序改错：约 10 题</p>
+              <p>题目总数：<span className="text-white font-medium">700+ 题</span></p>
+              <p>普通练习：基础题库与去重试卷题</p>
+              <p>专项练习2：三套仿真卷专项训练</p>
+              <p>题型覆盖：单选、填空、程序填空、程序改错</p>
               <p className="text-xs mt-3" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                最后更新：2026-06-25
+                最后更新：2026-06-26
               </p>
             </div>
           </div>
@@ -81,7 +75,7 @@ export default function Footer() {
               版本更新记录
             </h4>
             <ol className="space-y-3">
-              {releaseNotes.map((note) => (
+              {releaseNotes.slice(0, 4).map((note) => (
                 <li key={note.version} className="text-sm">
                   <div className="flex items-center gap-2">
                     <span className="text-white font-semibold">{note.version}</span>

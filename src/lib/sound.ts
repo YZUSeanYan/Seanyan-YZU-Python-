@@ -1,5 +1,12 @@
 // Duolingo-style sound effects manager
-let soundEnabled = true;
+const SOUND_ENABLED_KEY = 'seanyan_sound_enabled';
+
+function readSoundEnabled() {
+  if (typeof window === 'undefined') return true;
+  return window.localStorage.getItem(SOUND_ENABLED_KEY) !== 'false';
+}
+
+let soundEnabled = readSoundEnabled();
 
 const soundCache: Record<string, HTMLAudioElement> = {};
 let audioContext: AudioContext | null = null;
@@ -31,12 +38,8 @@ export function playWrong() {
 }
 
 export function playNext() {
-  if (!soundEnabled) return;
-  try {
-    const audio = getAudio('/sounds/next.mp3');
-    audio.currentTime = 0;
-    audio.play().catch(() => {});
-  } catch { /* ignore */ }
+  playTone(440, 0.045, 0, 'sine', 0.016);
+  playTone(588, 0.055, 0.038, 'sine', 0.014);
 }
 
 function playTone(frequency: number, duration = 0.08, delay = 0, type: OscillatorType = 'sine', gain = 0.045) {
@@ -85,10 +88,25 @@ export function playFinish() {
 }
 
 export function toggleSound() {
-  soundEnabled = !soundEnabled;
+  setSoundEnabled(!soundEnabled);
+  return soundEnabled;
+}
+
+export function setSoundEnabled(enabled: boolean) {
+  soundEnabled = enabled;
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(SOUND_ENABLED_KEY, String(enabled));
+    }
+  } catch { /* ignore */ }
   return soundEnabled;
 }
 
 export function isSoundEnabled() {
   return soundEnabled;
+}
+
+export function playSoundPreview() {
+  playSelect();
+  playTone(660, 0.07, 0.09, 'sine', 0.028);
 }

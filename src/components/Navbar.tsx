@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Flame, LogIn, LogOut, ShieldCheck, ChevronDown } from 'lucide-react';
+import { Menu, X, Flame, LogIn, LogOut, ShieldCheck, ChevronDown, Settings } from 'lucide-react';
 import { PythonLogo } from './SvgAssets';
 import { useStudyStats } from '@/hooks/useStudyStats';
 import { useAuth } from '@/hooks/useAuth';
@@ -24,6 +24,7 @@ export default function Navbar() {
       { to: '/sim-exam', label: '仿真' },
       { to: '/wrongbook', label: '错题本' },
       { to: '/stats', label: '统计' },
+      { to: '/settings', label: '设置' },
     ],
     [canUsePractice2]
   );
@@ -159,6 +160,14 @@ export default function Navbar() {
                         后台管理
                       </NavLink>
                     )}
+                    <NavLink
+                      to="/settings"
+                      onClick={() => setDropdownOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-pm-text-secondary hover:bg-pm-bg-primary hover:text-pm-text-primary transition-colors"
+                    >
+                      <Settings className="w-4 h-4" />
+                      设置与关于
+                    </NavLink>
                     <button
                       onClick={handleLogout}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-pm-error hover:bg-pm-error-light transition-colors"
