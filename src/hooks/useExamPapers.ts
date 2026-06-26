@@ -19,6 +19,48 @@ interface RawExamPaper {
   counts: Record<string, number>;
 }
 
+const optionLetters = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+function stripOptionLabel(option: string): string {
+  return option.replace(/^[A-F][.、]\s*/i, '').trim();
+}
+
+function normalizeAnswerLetter(answer: unknown): string {
+  const value = Array.isArray(answer) ? String(answer[0] || '') : String(answer || '');
+  const match = value.trim().match(/^([A-F])/i);
+  return match ? match[1].toUpperCase() : value.trim().toUpperCase();
+}
+
+function normalizeSingleChoice(
+  options: string[] | undefined,
+  answer: unknown
+): { options: string[] | undefined; answer: unknown } {
+  if (!Array.isArray(options) || options.length === 0) {
+    return { options, answer };
+  }
+
+  const answerLetter = normalizeAnswerLetter(answer);
+  let normalizedAnswer = answer;
+  const firstLetterByText = new Map<string, string>();
+  const keptOptions: string[] = [];
+
+  options.forEach((option, index) => {
+    const text = stripOptionLabel(String(option));
+    const currentLetter = optionLetters[index] || String.fromCharCode(65 + index);
+    const firstLetter = firstLetterByText.get(text);
+
+    if (firstLetter) {
+      if (answerLetter === currentLetter) normalizedAnswer = firstLetter;
+      return;
+    }
+
+    firstLetterByText.set(text, currentLetter);
+    keptOptions.push(option);
+  });
+
+  return { options: keptOptions, answer: normalizedAnswer };
+}
+
 /**
  * Historical exam-papers.json contains entries with type='single' that are
  * actually code-fix questions:
@@ -52,6 +94,9 @@ function normalizeQuestion(
   const declaredType = raw.type as Question['type'];
   const category = String(raw.category || '综合题');
   const type = fixMisclassifiedType(declaredType, category, options, content);
+  const normalizedChoice = type === 'single'
+    ? normalizeSingleChoice(options, raw.answer)
+    : { options: undefined, answer: raw.answer };
 
   // IMPORTANT: exam-papers.json ids come from parse_exam_docs.py with the
   // rule `paperNo * 1000 + paperQuestionNumber`, but a single paper has
@@ -65,14 +110,15 @@ function normalizeQuestion(
 
   return {
     id,
+    sourceId: Number(raw.id) || undefined,
     type,
     difficulty: (raw.difficulty as Question['difficulty']) || 'medium',
     category,
     content,
-    options: type === 'single' ? options : undefined,
+    options: normalizedChoice.options,
     code: raw.code as string | undefined,
     blanks: raw.blanks as Question['blanks'],
-    answer: raw.answer as Question['answer'],
+    answer: normalizedChoice.answer as Question['answer'],
     explanation: String(raw.explanation || ''),
     tags: (raw.tags as string[] | undefined) || [category],
   };

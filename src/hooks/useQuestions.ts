@@ -17,6 +17,7 @@ const typeMapping: Record<string, QuestionType> = {
 function normalizeQuestion(q: any): Question {
   return {
     id: q.id,
+    sourceId: q.sourceId,
     type: typeMapping[q.type] || q.type,
     difficulty: q.difficulty || 'easy',
     category: q.category,

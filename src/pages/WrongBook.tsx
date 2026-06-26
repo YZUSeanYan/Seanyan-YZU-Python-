@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, AlertCircle, CheckCircle, RotateCcw, Trash2, CheckSquare } from 'lucide-react';
 import type { QuestionType, Question } from '@/types';
 import { useQuestions } from '@/hooks/useQuestions';
+import { useExamPapers } from '@/hooks/useExamPapers';
 import { useWrongBook } from '@/hooks/useWrongBook';
 import WrongBookFilters from '@/components/wrongbook/WrongBookFilters';
 import WrongQuestionCard from '@/components/wrongbook/WrongQuestionCard';
@@ -18,6 +19,7 @@ interface RetryQuestion {
 
 export default function WrongBook() {
   const { getById } = useQuestions();
+  const { papers } = useExamPapers();
   const {
     wrongAnswers,
     markMastered,
@@ -38,17 +40,32 @@ export default function WrongBook() {
   // Retry mode
   const [retryMode, setRetryMode] = useState(false);
   const [retryQuestions, setRetryQuestions] = useState<RetryQuestion[]>([]);
+  const examQuestionById = useMemo(() => {
+    const map = new Map<number, Question>();
+    const legacyMap = new Map<number, Question>();
+    papers.forEach((paper) => {
+      paper.questions.forEach((question) => {
+        map.set(question.id, question);
+        if (question.sourceId && !legacyMap.has(question.sourceId)) {
+          legacyMap.set(question.sourceId, question);
+        }
+      });
+    });
+    return { map, legacyMap };
+  }, [papers]);
 
   // Enrich wrong answers with question data
   const enrichedWrongAnswers = useMemo(() => {
     return wrongAnswers
       .map((wa) => {
-        const q = getById(wa.questionId);
+        const q = getById(wa.questionId)
+          || examQuestionById.map.get(wa.questionId)
+          || examQuestionById.legacyMap.get(wa.questionId);
         if (!q) return null;
         return { wrongAnswer: wa, question: q };
       })
       .filter(Boolean) as { wrongAnswer: typeof wrongAnswers[0]; question: Question }[];
-  }, [wrongAnswers, getById]);
+  }, [wrongAnswers, getById, examQuestionById]);
 
   // Type counts
   const typeCounts = useMemo(() => {
@@ -139,7 +156,7 @@ export default function WrongBook() {
     if (selectedIds.size === filteredItems.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredItems.map(({ question }) => question.id)));
+      setSelectedIds(new Set(filteredItems.map(({ wrongAnswer }) => wrongAnswer.questionId)));
     }
   }, [filteredItems, selectedIds.size]);
 
@@ -172,7 +189,7 @@ export default function WrongBook() {
   }, [filteredItems]);
 
   const handleRetrySingle = useCallback((questionId: number) => {
-    const item = enrichedWrongAnswers.find(({ question }) => question.id === questionId);
+    const item = enrichedWrongAnswers.find(({ wrongAnswer }) => wrongAnswer.questionId === questionId);
     if (item) {
       setRetryQuestions([
         {
@@ -195,7 +212,7 @@ export default function WrongBook() {
   }, []);
 
   const handleMarkMastered = useCallback((questionId: number) => {
-    const item = enrichedWrongAnswers.find(({ question }) => question.id === questionId);
+    const item = enrichedWrongAnswers.find(({ wrongAnswer }) => wrongAnswer.questionId === questionId);
     if (item?.wrongAnswer.isMastered) {
       markNotMastered(questionId);
     } else {
@@ -405,15 +422,15 @@ export default function WrongBook() {
           <div className="space-y-4">
             {filteredItems.map(({ question, wrongAnswer }, index) => (
               <WrongQuestionCard
-                key={question.id}
+                key={wrongAnswer.questionId}
                 question={question}
                 wrongAnswer={wrongAnswer}
                 batchMode={batchMode}
-                selected={selectedIds.has(question.id)}
-                onToggleSelect={() => handleToggleSelect(question.id)}
-                onMarkMastered={() => handleMarkMastered(question.id)}
-                onRemove={() => removeWrongAnswer(question.id)}
-                onRetry={() => handleRetrySingle(question.id)}
+                selected={selectedIds.has(wrongAnswer.questionId)}
+                onToggleSelect={() => handleToggleSelect(wrongAnswer.questionId)}
+                onMarkMastered={() => handleMarkMastered(wrongAnswer.questionId)}
+                onRemove={() => removeWrongAnswer(wrongAnswer.questionId)}
+                onRetry={() => handleRetrySingle(wrongAnswer.questionId)}
                 index={index}
               />
             ))}

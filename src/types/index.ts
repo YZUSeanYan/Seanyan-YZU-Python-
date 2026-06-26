@@ -10,6 +10,7 @@ export interface Blank {
 
 export interface Question {
   id: number;
+  sourceId?: number;
   type: QuestionType;
   difficulty: Difficulty;
   category: string;

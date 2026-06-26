@@ -73,7 +73,7 @@ export default function ScoreReport({
   const navigate = useNavigate();
 
   const sectionStats = sections.map((section) => {
-    const answered = section.questions.filter((q) => Boolean(answers[q.id])).length;
+    const answered = section.questions.filter((q) => Boolean(answers[q.id]?.trim())).length;
     const correct = section.questions.filter((q) => isAnswerCorrect(q, answers[q.id])).length;
     return {
       ...section,
@@ -205,7 +205,7 @@ export default function ScoreReport({
                 globalNumber += 1;
                 const userAnswer = answers[q.id];
                 const correct = isAnswerCorrect(q, userAnswer);
-                const answered = Boolean(userAnswer);
+                const answered = Boolean(userAnswer?.trim());
                 return (
                   <div
                     key={q.id}

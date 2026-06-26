@@ -61,7 +61,7 @@ export default function QuestionPicker({ sections, activeSectionIdx, activeQuest
                 <div className="grid grid-cols-8 gap-1.5">
                   {section.questions.map((q, qIdx) => {
                     const isCurrent = sectionIdx === activeSectionIdx && qIdx === activeQuestionIdx;
-                    const isAnswered = answers[q.id] !== undefined && answers[q.id] !== '';
+                    const isAnswered = Boolean(answers[q.id]?.trim());
                     const globalNum = sectionOffset + qIdx + 1;
 
                     return (

@@ -56,7 +56,7 @@ export default function ExamSidebar({
       <div className="flex-1 py-3 px-2 space-y-1.5 overflow-y-auto">
         {sections.map((section, idx) => {
           const answeredCount = section.questions.filter(
-            (q) => answers[q.id] !== undefined && answers[q.id] !== ''
+            (q) => answers[q.id]?.trim()
           ).length;
           const isActive = idx === activeSectionIdx;
 

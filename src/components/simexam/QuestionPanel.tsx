@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Circle } from 'lucide-react';
-import CodeBlock from '@/components/practice/CodeBlock';
+import QuestionContent from '@/components/practice/QuestionContent';
 import type { Question } from '@/types';
 
 interface QuestionPanelProps {
@@ -39,18 +39,12 @@ export default function QuestionPanel({ question, globalNumber, answer, onAnswer
 
       {/* Question Content */}
       <div className="mb-6">
-        {(question.type === 'codeFill' || question.type === 'codeFix') && question.content ? (
-          <CodeBlock code={question.content} className="mb-4" />
-        ) : (
-          <p className="text-[15px] text-pm-text-primary leading-[1.8] mb-4 whitespace-pre-wrap">
-            {question.content}
-          </p>
-        )}
-        {question.code && question.type !== 'codeFill' && question.type !== 'codeFix' && (
-          <pre className="bg-[#1E293B] text-[#E2E8F0] rounded-md p-4 font-mono text-[14px] leading-[1.8] overflow-x-auto mb-4">
-            <code>{question.code}</code>
-          </pre>
-        )}
+        <QuestionContent
+          content={question.content}
+          code={question.code}
+          codeLike={question.type === 'codeFill' || question.type === 'codeFix'}
+          textClassName="text-[15px] text-pm-text-primary leading-[1.8] mb-4 whitespace-pre-wrap"
+        />
       </div>
 
       {/* Answer Area - Single Choice */}

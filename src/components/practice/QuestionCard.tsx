@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bookmark, BookmarkCheck, Lightbulb } from 'lucide-react';
 import type { Question } from '@/types';
 import AnswerOptions from './AnswerOptions';
-import CodeBlock from './CodeBlock';
+import QuestionContent from './QuestionContent';
 
 interface QuestionCardProps {
   question: Question;
@@ -104,17 +104,11 @@ export default function QuestionCard({
 
       {/* Question content */}
       <div className="mb-6">
-        {(question.type === 'codeFill' || question.type === 'codeFix') && question.content ? (
-          <CodeBlock code={question.content} className="mb-4" />
-        ) : (
-          <p className="text-base font-body leading-relaxed text-pm-text-primary mb-4 whitespace-pre-wrap">
-            {question.content}
-          </p>
-        )}
-
-        {question.code && question.type !== 'codeFill' && question.type !== 'codeFix' && (
-          <CodeBlock code={question.code} className="mb-4" />
-        )}
+        <QuestionContent
+          content={question.content}
+          code={question.code}
+          codeLike={question.type === 'codeFill' || question.type === 'codeFix'}
+        />
       </div>
 
       {/* Answer area by type */}
