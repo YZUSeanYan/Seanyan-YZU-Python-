@@ -104,6 +104,14 @@ export function useWrongBook() {
     [updateWrongAnswers]
   );
 
+  const addWrongAnswers = useCallback(
+    (items: WrongAnswer[]) => {
+      if (items.length === 0) return;
+      updateWrongAnswers((prev) => mergeWrongAnswers(prev, items));
+    },
+    [updateWrongAnswers]
+  );
+
   const markMastered = useCallback(
     (questionId: number) => {
       updateWrongAnswers((prev) =>
@@ -150,6 +158,7 @@ export function useWrongBook() {
     wrongAnswers,
     unmasteredCount,
     addWrongAnswer,
+    addWrongAnswers,
     markMastered,
     markNotMastered,
     removeWrongAnswer,

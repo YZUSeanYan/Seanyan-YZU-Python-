@@ -1,14 +1,17 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, AlertCircle, CheckCircle, RotateCcw, Trash2, CheckSquare } from 'lucide-react';
-import type { QuestionType, Question } from '@/types';
+import type { Difficulty, QuestionType, Question, WrongAnswer } from '@/types';
 import { useQuestions } from '@/hooks/useQuestions';
 import { useExamPapers } from '@/hooks/useExamPapers';
 import { useWrongBook } from '@/hooks/useWrongBook';
+import { useUserData } from '@/contexts/UserDataContext';
 import WrongBookFilters from '@/components/wrongbook/WrongBookFilters';
 import WrongQuestionCard from '@/components/wrongbook/WrongQuestionCard';
 import EmptyState from '@/components/wrongbook/EmptyState';
 import RetryMode from '@/components/wrongbook/RetryMode';
+
+type AnswerState = 'unanswered' | 'correct' | 'wrong' | 'skipped';
 
 interface RetryQuestion {
   question: Question;
@@ -17,11 +20,70 @@ interface RetryQuestion {
   wrongCount: number;
 }
 
+interface Practice2Progress {
+  filters?: {
+    type?: QuestionType | 'all';
+    difficulty?: Difficulty | 'all';
+    category?: string;
+    searchQuery?: string;
+    source?: string;
+  };
+  userAnswers?: Record<number, string | null>;
+  answerStates?: AnswerState[];
+  timestamp?: string;
+  version?: number;
+}
+
+function parsePractice2Progress(raw: string | undefined | null): Practice2Progress | null {
+  if (!raw) return null;
+  try {
+    const progress = JSON.parse(raw) as Practice2Progress;
+    if (!progress || progress.version !== 1 || !Array.isArray(progress.answerStates)) return null;
+    return progress;
+  } catch {
+    return null;
+  }
+}
+
+function getLocalPractice2Progress(): Practice2Progress | null {
+  try {
+    return parsePractice2Progress(localStorage.getItem('seanyan_practice2_progress'));
+  } catch {
+    return null;
+  }
+}
+
+function applyPracticeFilters(questions: Question[], filters: Practice2Progress['filters']): Question[] {
+  let filtered = [...questions];
+  if (!filters) return filtered;
+
+  if (filters.type && filters.type !== 'all') {
+    filtered = filtered.filter((question) => question.type === filters.type);
+  }
+  if (filters.difficulty && filters.difficulty !== 'all') {
+    filtered = filtered.filter((question) => question.difficulty === filters.difficulty);
+  }
+  if (filters.category && filters.category !== 'all') {
+    filtered = filtered.filter((question) => question.category === filters.category);
+  }
+  if (filters.searchQuery?.trim()) {
+    const query = filters.searchQuery.toLowerCase();
+    filtered = filtered.filter(
+      (question) =>
+        question.content.toLowerCase().includes(query) ||
+        question.tags.some((tag) => tag.toLowerCase().includes(query))
+    );
+  }
+  return filtered;
+}
+
 export default function WrongBook() {
   const { getById } = useQuestions();
   const { papers } = useExamPapers();
+  const { data } = useUserData();
   const {
     wrongAnswers,
+    addWrongAnswers,
     markMastered,
     markNotMastered,
     removeWrongAnswer,
@@ -53,6 +115,46 @@ export default function WrongBook() {
     });
     return { map, legacyMap };
   }, [papers]);
+  const examQuestions = useMemo(
+    () => papers.flatMap((paper) => paper.questions),
+    [papers]
+  );
+
+  useEffect(() => {
+    if (examQuestions.length === 0) return;
+
+    const candidates = [
+      parsePractice2Progress(data.memoryStatus[-2]),
+      getLocalPractice2Progress(),
+    ].filter(Boolean) as Practice2Progress[];
+
+    const existingIds = new Set(wrongAnswers.map((item) => item.questionId));
+    const recovered: WrongAnswer[] = [];
+
+    candidates.forEach((progress) => {
+      const pool = applyPracticeFilters(examQuestions, progress.filters);
+      progress.answerStates?.forEach((state, index) => {
+        if (state !== 'wrong') return;
+        const question = pool[index];
+        if (!question || existingIds.has(question.id)) return;
+
+        existingIds.add(question.id);
+        recovered.push({
+          questionId: question.id,
+          userAnswer: String(progress.userAnswers?.[index] || ''),
+          correctAnswer: Array.isArray(question.answer) ? question.answer.join(' | ') : question.answer,
+          wrongCount: 1,
+          lastWrongAt: progress.timestamp || new Date().toISOString(),
+          isMastered: false,
+          attempts: 0,
+        });
+      });
+    });
+
+    if (recovered.length > 0) {
+      addWrongAnswers(recovered);
+    }
+  }, [addWrongAnswers, data.memoryStatus, examQuestions, wrongAnswers]);
 
   // Enrich wrong answers with question data
   const enrichedWrongAnswers = useMemo(() => {
