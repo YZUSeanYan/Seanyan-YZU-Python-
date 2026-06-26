@@ -47,6 +47,21 @@ function parseProgress(str: string | undefined): PracticeProgress | null {
   }
 }
 
+function getProgressScore(progress: PracticeProgress | null): number {
+  if (!progress) return 0;
+  const stateCount = Array.isArray(progress.answerStates)
+    ? progress.answerStates.filter((state) => state && state !== 'unanswered').length
+    : 0;
+  const answerCount = progress.userAnswers && typeof progress.userAnswers === 'object'
+    ? Object.values(progress.userAnswers).filter((answer) => answer !== null && answer !== undefined && String(answer).trim() !== '').length
+    : 0;
+  const resultCount = progress.results && typeof progress.results === 'object'
+    ? Object.keys(progress.results).length
+    : 0;
+
+  return Math.max(stateCount, answerCount, resultCount);
+}
+
 export function getSavedProgress(memoryStatus: Record<number, string>): PracticeProgress | null {
   return parseProgress(memoryStatus[PROGRESS_STORAGE_KEYS.all]);
 }
@@ -130,6 +145,9 @@ export function usePracticeProgress(scope: PracticeProgressScope = 'all') {
         timestamp: new Date().toISOString(),
         version: 1,
       };
+      const existingProgress = getProgress();
+      if (getProgressScore(progress) === 0 && getProgressScore(existingProgress) > 0) return;
+
       const progressStr = JSON.stringify(progress);
 
       // Save to server-synced memoryStatus
@@ -140,7 +158,7 @@ export function usePracticeProgress(scope: PracticeProgressScope = 'all') {
         localStorage.setItem(localStorageKey, progressStr);
       } catch { /* ignore */ }
     }, DEBOUNCE_MS);
-  }, [updateMemoryStatus, progressStorageKey, localStorageKey]);
+  }, [getProgress, updateMemoryStatus, progressStorageKey, localStorageKey]);
 
   const saveImmediate = useCallback((
     currentQuestionId: number,
@@ -161,6 +179,9 @@ export function usePracticeProgress(scope: PracticeProgressScope = 'all') {
       timestamp: new Date().toISOString(),
       version: 1,
     };
+    const existingProgress = getProgress();
+    if (getProgressScore(progress) === 0 && getProgressScore(existingProgress) > 0) return;
+
     const progressStr = JSON.stringify(progress);
 
     // Save to server-synced memoryStatus
@@ -170,7 +191,7 @@ export function usePracticeProgress(scope: PracticeProgressScope = 'all') {
     try {
       localStorage.setItem(localStorageKey, progressStr);
     } catch { /* ignore */ }
-  }, [updateMemoryStatus, progressStorageKey, localStorageKey]);
+  }, [getProgress, updateMemoryStatus, progressStorageKey, localStorageKey]);
 
   const clearSavedProgress = useCallback(() => {
     clearScopedProgress(updateMemoryStatus, scope);

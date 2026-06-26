@@ -115,6 +115,33 @@ function getProgressTimestamp(value: unknown): number {
   }
 }
 
+function getProgressScore(value: unknown): number {
+  if (typeof value !== 'string') return 0;
+  try {
+    const parsed = JSON.parse(value) as {
+      version?: number;
+      answerStates?: string[];
+      userAnswers?: Record<string, string | null>;
+      results?: Record<string, boolean>;
+    };
+    if (!parsed || parsed.version !== 1) return 0;
+
+    const stateCount = Array.isArray(parsed.answerStates)
+      ? parsed.answerStates.filter((state) => state && state !== 'unanswered').length
+      : 0;
+    const answerCount = parsed.userAnswers && typeof parsed.userAnswers === 'object'
+      ? Object.values(parsed.userAnswers).filter((answer) => answer !== null && answer !== undefined && String(answer).trim() !== '').length
+      : 0;
+    const resultCount = parsed.results && typeof parsed.results === 'object'
+      ? Object.keys(parsed.results).length
+      : 0;
+
+    return Math.max(stateCount, answerCount, resultCount);
+  } catch {
+    return 0;
+  }
+}
+
 function mergeMemoryStatus(...sources: Array<Record<number, string> | null | undefined>): Record<number, string> {
   const merged: Record<number, string> = {};
 
@@ -126,6 +153,16 @@ function mergeMemoryStatus(...sources: Array<Record<number, string> | null | und
       const existing = merged[numericKey];
       const incomingTime = getProgressTimestamp(value);
       const existingTime = getProgressTimestamp(existing);
+      const incomingScore = getProgressScore(value);
+      const existingScore = getProgressScore(existing);
+
+      if (existing && numericKey < 0) {
+        if (existingScore > 0 && incomingScore === 0) return;
+        if (incomingScore > 0 && incomingScore > existingScore) {
+          merged[numericKey] = value;
+          return;
+        }
+      }
 
       if (!existing || incomingTime >= existingTime) {
         merged[numericKey] = value;
