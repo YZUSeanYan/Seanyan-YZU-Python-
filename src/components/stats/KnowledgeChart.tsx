@@ -81,8 +81,11 @@ export default function KnowledgeChart({ data, delay = 0 }: KnowledgeChartProps)
                 fontSize: '13px',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
               }}
-              formatter={(value: number, _name: string, props: any) => {
-                return [`${value}% (${props.payload.correct}/${props.payload.answered})`, '正确率'];
+              formatter={(value: unknown, _name: unknown, props: { payload?: Partial<CategoryData> }) => {
+                const rate = Number(value) || 0;
+                const correct = props.payload?.correct ?? 0;
+                const answered = props.payload?.answered ?? 0;
+                return [`${rate}% (${correct}/${answered})`, '正确率'];
               }}
             />
             <Bar dataKey="rate" radius={[0, 4, 4, 0]} barSize={24}>

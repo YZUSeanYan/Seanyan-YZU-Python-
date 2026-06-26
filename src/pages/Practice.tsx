@@ -115,7 +115,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
     setUserAnswers({});
     setResults({});
     setShowResult(false);
-  }, [filterSignature]);
+  }, [filterSignature, filteredQuestions.length]);
 
   // Restore saved practice progress once questions and user data are ready.
   // The cascade is intentional: we set pendingProgress first, then the next

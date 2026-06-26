@@ -86,6 +86,12 @@ export interface User {
   remarkName?: string;
   practice2Enabled?: boolean;
   createdAt: string;
+  lastLoginAt?: string;
+  lastSeenAt?: string;
+  loginCount?: number;
+  lastIp?: string;
+  lastUserAgent?: string;
+  lastPath?: string;
 }
 
 export interface AuthState {
@@ -109,4 +115,31 @@ export interface UserData {
   studyStats: StudyStats;
   memoryStatus: Record<number, string>;
   examHistory: ExamRecord[];
+}
+
+export interface AdminActivityUser extends Omit<User, 'password'> {
+  dataUpdatedAt?: string;
+  activeSource?: 'heartbeat' | 'data-sync' | 'registration';
+  totalAnswered: number;
+  totalCorrect: number;
+  correctRate: number;
+  streakDays: number;
+  lastStudyDate: string;
+  wrongCount: number;
+  examCount: number;
+}
+
+export interface AdminActivityRecord {
+  id: string;
+  userId: string;
+  studentId: string;
+  name: string;
+  remarkName?: string;
+  role: 'student' | 'admin';
+  eventType: 'login' | 'register' | 'heartbeat' | string;
+  path: string;
+  detail: Record<string, unknown>;
+  ip: string;
+  userAgent: string;
+  createdAt: string;
 }

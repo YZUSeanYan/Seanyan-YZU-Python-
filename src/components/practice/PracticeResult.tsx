@@ -8,7 +8,6 @@ interface PracticeResultProps {
   wrong: number;
   skipped?: number;
   onRetryWrong: () => void;
-  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
   onContinue: () => void;
 }
 

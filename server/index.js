@@ -35,6 +35,12 @@ db.exec(`
     role TEXT DEFAULT 'student',
     remark_name TEXT DEFAULT '',
     practice2_enabled INTEGER DEFAULT 0,
+    last_login_at TEXT DEFAULT '',
+    last_seen_at TEXT DEFAULT '',
+    login_count INTEGER DEFAULT 0,
+    last_ip TEXT DEFAULT '',
+    last_user_agent TEXT DEFAULT '',
+    last_path TEXT DEFAULT '',
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -48,22 +54,74 @@ db.exec(`
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
+
+  CREATE TABLE IF NOT EXISTS user_activity (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    path TEXT DEFAULT '',
+    detail TEXT DEFAULT '{}',
+    ip TEXT DEFAULT '',
+    user_agent TEXT DEFAULT '',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_user_activity_user_time ON user_activity(user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_user_activity_time ON user_activity(created_at DESC);
 `);
 
 try { db.exec("ALTER TABLE users ADD COLUMN remark_name TEXT DEFAULT ''"); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN practice2_enabled INTEGER DEFAULT 0"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN last_login_at TEXT DEFAULT ''"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN last_seen_at TEXT DEFAULT ''"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN login_count INTEGER DEFAULT 0"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN last_ip TEXT DEFAULT ''"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN last_user_agent TEXT DEFAULT ''"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN last_path TEXT DEFAULT ''"); } catch {}
 try { db.exec("ALTER TABLE user_data ADD COLUMN practice_progress TEXT DEFAULT '{}'"); } catch {}
 
 const stmts = {
   createUser: db.prepare('INSERT INTO users (id, student_id, name, password, role, remark_name, practice2_enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
   findUserByStudentId: db.prepare('SELECT * FROM users WHERE student_id = ?'),
   findUserById: db.prepare('SELECT * FROM users WHERE id = ?'),
-  getAllUsers: db.prepare("SELECT id, student_id, name, role, remark_name, practice2_enabled, created_at FROM users WHERE role IN ('student', 'admin') ORDER BY created_at DESC"),
+  getAllUsers: db.prepare(`
+    SELECT id, student_id, name, role, remark_name, practice2_enabled, created_at,
+           last_login_at, last_seen_at, login_count, last_ip, last_user_agent, last_path
+    FROM users
+    WHERE role IN ('student', 'admin')
+    ORDER BY created_at DESC
+  `),
   updateUserPassword: db.prepare('UPDATE users SET password = ? WHERE student_id = ?'),
   updateUserProfile: db.prepare('UPDATE users SET name = ?, remark_name = ?, practice2_enabled = ? WHERE id = ?'),
   deleteUser: db.prepare("DELETE FROM users WHERE id = ? AND role != 'admin'"),
   deleteUserData: db.prepare('DELETE FROM user_data WHERE user_id = ?'),
+  deleteUserActivity: db.prepare('DELETE FROM user_activity WHERE user_id = ?'),
   getUserData: db.prepare('SELECT * FROM user_data WHERE user_id = ?'),
+  getAllUserDataSummary: db.prepare('SELECT user_id, wrong_answers, study_stats, exam_history, updated_at FROM user_data'),
+  updateUserLogin: db.prepare(`
+    UPDATE users
+    SET last_login_at = ?, last_seen_at = ?, login_count = COALESCE(login_count, 0) + 1,
+        last_ip = ?, last_user_agent = ?, last_path = ?
+    WHERE id = ?
+  `),
+  updateUserSeen: db.prepare(`
+    UPDATE users
+    SET last_seen_at = ?, last_ip = ?, last_user_agent = ?, last_path = ?
+    WHERE id = ?
+  `),
+  insertActivity: db.prepare(`
+    INSERT INTO user_activity (id, user_id, event_type, path, detail, ip, user_agent, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `),
+  getActivityRecords: db.prepare(`
+    SELECT a.id, a.user_id, a.event_type, a.path, a.detail, a.ip, a.user_agent, a.created_at,
+           u.student_id, u.name, u.remark_name, u.role
+    FROM user_activity a
+    LEFT JOIN users u ON u.id = a.user_id
+    ORDER BY a.created_at DESC
+    LIMIT ?
+  `),
   upsertUserData: db.prepare(`
     INSERT INTO user_data (user_id, wrong_answers, study_stats, memory_status, exam_history, practice_progress, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -96,7 +154,78 @@ function userResponse(user) {
     remarkName: user.remark_name || '',
     practice2Enabled: user.role === 'admin' || Boolean(user.practice2_enabled),
     createdAt: user.created_at,
+    lastLoginAt: user.last_login_at || '',
+    lastSeenAt: user.last_seen_at || '',
+    loginCount: Number(user.login_count) || 0,
+    lastIp: user.last_ip || '',
+    lastUserAgent: user.last_user_agent || '',
+    lastPath: user.last_path || '',
   };
+}
+
+function safeParseJson(value, fallback) {
+  if (!value || typeof value !== 'string') return fallback;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function requestMeta(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const ip = forwarded || req.socket?.remoteAddress || '';
+  const userAgent = String(req.headers['user-agent'] || '').slice(0, 300);
+  return { ip: ip.slice(0, 80), userAgent };
+}
+
+function cleanPath(pathValue) {
+  if (typeof pathValue !== 'string') return '';
+  return pathValue.slice(0, 200);
+}
+
+function recordActivity(userId, eventType, req, detail = {}, pathValue = '') {
+  const user = stmts.findUserById.get(userId);
+  if (!user) return null;
+
+  const now = new Date().toISOString();
+  const { ip, userAgent } = requestMeta(req);
+  const pathForRecord = cleanPath(pathValue || req.body?.path || req.query?.path || '');
+  stmts.updateUserSeen.run(now, ip, userAgent, pathForRecord, userId);
+  stmts.insertActivity.run(
+    `act_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    userId,
+    eventType,
+    pathForRecord,
+    JSON.stringify(detail || {}),
+    ip,
+    userAgent,
+    now
+  );
+
+  return now;
+}
+
+function recordLoginActivity(userId, req, eventType, detail = {}) {
+  const user = stmts.findUserById.get(userId);
+  if (!user) return null;
+
+  const now = new Date().toISOString();
+  const { ip, userAgent } = requestMeta(req);
+  const pathForRecord = cleanPath(req.body?.path || '/login');
+  stmts.updateUserLogin.run(now, now, ip, userAgent, pathForRecord, userId);
+  stmts.insertActivity.run(
+    `act_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    userId,
+    eventType,
+    pathForRecord,
+    JSON.stringify(detail || {}),
+    ip,
+    userAgent,
+    now
+  );
+
+  return now;
 }
 
 app.get('/api/health', (req, res) => {
@@ -113,6 +242,7 @@ app.post('/api/register', (req, res) => {
 
     const id = 'user_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
     stmts.createUser.run(id, studentId, name, password, 'student', '', 0, new Date().toISOString());
+    recordLoginActivity(id, req, 'register', { source: 'register' });
     res.json({ success: true, user: userResponse(stmts.findUserByStudentId.get(studentId)) });
   } catch (err) {
     console.error('[Register Error]', err);
@@ -126,7 +256,8 @@ app.post('/api/login', (req, res) => {
     if (!studentId || !password) return res.status(400).json({ error: '学号和密码不能为空' });
     const user = stmts.findUserByStudentId.get(studentId);
     if (!user || user.password !== password) return res.status(401).json({ error: '学号或密码错误' });
-    res.json({ success: true, user: userResponse(user) });
+    recordLoginActivity(user.id, req, 'login', { source: 'password' });
+    res.json({ success: true, user: userResponse(stmts.findUserById.get(user.id)) });
   } catch (err) {
     console.error('[Login Error]', err);
     res.status(500).json({ error: '登录失败' });
@@ -139,6 +270,71 @@ app.get('/api/users', (req, res) => {
   } catch (err) {
     console.error('[Users Error]', err);
     res.status(500).json({ error: '获取用户列表失败' });
+  }
+});
+
+app.post('/api/activity/heartbeat', (req, res) => {
+  try {
+    const { userId, path: currentPath } = req.body;
+    if (!userId) return res.status(400).json({ error: '缺少用户ID' });
+    const user = stmts.findUserById.get(userId);
+    if (!user) return res.status(404).json({ error: '用户不存在' });
+    const seenAt = recordActivity(userId, 'heartbeat', req, { source: 'client' }, currentPath);
+    res.json({ success: true, seenAt });
+  } catch (err) {
+    console.error('[Heartbeat Error]', err);
+    res.status(500).json({ error: '记录在线状态失败' });
+  }
+});
+
+app.get('/api/admin/activity', (req, res) => {
+  try {
+    const limit = Math.max(20, Math.min(500, Number(req.query.limit) || 200));
+    const users = stmts.getAllUsers.all();
+    const dataRows = stmts.getAllUserDataSummary.all();
+    const dataByUser = new Map(dataRows.map((row) => [row.user_id, row]));
+
+    const usersWithActivity = users.map((user) => {
+      const data = dataByUser.get(user.id);
+      const stats = safeParseJson(data?.study_stats, {});
+      const wrongAnswers = safeParseJson(data?.wrong_answers, []);
+      const examHistory = safeParseJson(data?.exam_history, []);
+      const lastSeenAt = user.last_seen_at || data?.updated_at || user.created_at || '';
+
+      return {
+        ...userResponse(user),
+        dataUpdatedAt: data?.updated_at || '',
+        lastSeenAt,
+        activeSource: user.last_seen_at ? 'heartbeat' : data?.updated_at ? 'data-sync' : 'registration',
+        totalAnswered: Number(stats.totalAnswered) || 0,
+        totalCorrect: Number(stats.totalCorrect) || 0,
+        correctRate: Number(stats.correctRate) || 0,
+        streakDays: Number(stats.streakDays) || 0,
+        lastStudyDate: stats.lastStudyDate || '',
+        wrongCount: Array.isArray(wrongAnswers) ? wrongAnswers.length : 0,
+        examCount: Array.isArray(examHistory) ? examHistory.length : 0,
+      };
+    }).sort((a, b) => new Date(b.lastSeenAt || 0).getTime() - new Date(a.lastSeenAt || 0).getTime());
+
+    const records = stmts.getActivityRecords.all(limit).map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      studentId: row.student_id || '',
+      name: row.name || '',
+      remarkName: row.remark_name || '',
+      role: row.role || 'student',
+      eventType: row.event_type,
+      path: row.path || '',
+      detail: safeParseJson(row.detail, {}),
+      ip: row.ip || '',
+      userAgent: row.user_agent || '',
+      createdAt: row.created_at,
+    }));
+
+    res.json({ users: usersWithActivity, records });
+  } catch (err) {
+    console.error('[Admin Activity Error]', err);
+    res.status(500).json({ error: '获取活跃成员失败' });
   }
 });
 
@@ -166,6 +362,7 @@ app.delete('/api/users/:id', (req, res) => {
     if (user.role === 'admin') return res.status(403).json({ error: '不能删除管理员账号' });
     const tx = db.transaction(() => {
       stmts.deleteUserData.run(req.params.id);
+      stmts.deleteUserActivity.run(req.params.id);
       stmts.deleteUser.run(req.params.id);
     });
     tx();

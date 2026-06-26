@@ -91,7 +91,16 @@ export default function ScoreReport({
         ? { label: '及格', color: '#E9A23B', bg: '#FDF3E0' }
         : { label: '需要加强', color: '#E74C3C', bg: '#FDEDEC' };
 
-  let globalNumber = 0;
+  const reviewItems = sections.flatMap((section, sectionIndex) => {
+    const offset = sections
+      .slice(0, sectionIndex)
+      .reduce((sum, item) => sum + item.questions.length, 0);
+    return section.questions.map((question, questionIndex) => ({
+      section,
+      question,
+      number: offset + questionIndex + 1,
+    }));
+  });
 
   return (
     <div className="min-h-[100dvh] bg-[#F5F7FA] pt-4 pb-12">
@@ -200,9 +209,7 @@ export default function ScoreReport({
         >
           <h2 className="text-[16px] font-semibold text-pm-text-primary mb-4">逐题解析</h2>
           <div className="space-y-4">
-            {sections.flatMap((section) =>
-              section.questions.map((q) => {
-                globalNumber += 1;
+            {reviewItems.map(({ section, question: q, number }) => {
                 const userAnswer = answers[q.id];
                 const correct = isAnswerCorrect(q, userAnswer);
                 const answered = Boolean(userAnswer?.trim());
@@ -217,7 +224,7 @@ export default function ScoreReport({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <span className="text-[13px] font-semibold text-pm-text-primary">第 {globalNumber} 题</span>
+                          <span className="text-[13px] font-semibold text-pm-text-primary">第 {number} 题</span>
                           <span className="text-[12px] px-2 py-0.5 rounded-full bg-white/80 text-pm-text-secondary">{typeLabels[q.type] || section.label}</span>
                           <span className="text-[12px] text-pm-text-muted">题库ID {q.id}</span>
                         </div>
@@ -247,8 +254,7 @@ export default function ScoreReport({
                     </div>
                   </div>
                 );
-              })
-            )}
+              })}
           </div>
         </motion.div>
 

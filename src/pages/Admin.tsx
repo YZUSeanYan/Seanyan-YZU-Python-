@@ -16,12 +16,15 @@ import {
   UploadCloud,
   RefreshCw,
   AlertTriangle,
+  Clock,
+  Wifi,
+  UserCheck,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import type { User, UserData, ExamRecord } from '@/types';
+import type { User, UserData, ExamRecord, AdminActivityRecord, AdminActivityUser } from '@/types';
 import { api } from '@/lib/api';
 
-type AdminTab = 'overview' | 'users' | 'exams' | 'recovery' | 'questionBank';
+type AdminTab = 'overview' | 'users' | 'activity' | 'exams' | 'recovery' | 'questionBank';
 
 type PracticeProgress = {
   currentIndex?: number;
@@ -65,6 +68,36 @@ function formatDate(value?: string): string {
   if (!value) return '暂无';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('zh-CN');
+}
+
+function formatDateTime(value?: string): string {
+  if (!value) return '暂无';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN');
+}
+
+function timeAgo(value?: string): string {
+  if (!value) return '暂无记录';
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) return value;
+  const diff = Date.now() - time;
+  if (diff < 60_000) return '刚刚';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}分钟前`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}小时前`;
+  return `${Math.floor(diff / 86_400_000)}天前`;
+}
+
+function isToday(value?: string): boolean {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  return date.toISOString().split('T')[0] === new Date().toISOString().split('T')[0];
+}
+
+function isOnline(value?: string): boolean {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  return !Number.isNaN(time) && Date.now() - time <= 5 * 60_000;
 }
 
 function parseJsonField<T>(value: unknown, fallback: T): T {
@@ -111,6 +144,54 @@ function mapServerUserData(userId: string, raw: Record<string, unknown>): UserDa
   };
 }
 
+function mapActivityUser(value: unknown): AdminActivityUser | null {
+  const item = value as Partial<AdminActivityUser>;
+  if (!item?.id || !item?.studentId || !item?.name) return null;
+  return {
+    id: item.id,
+    studentId: item.studentId,
+    name: item.name,
+    role: item.role === 'admin' ? 'admin' : 'student',
+    remarkName: item.remarkName || '',
+    practice2Enabled: item.role === 'admin' || Boolean(item.practice2Enabled),
+    createdAt: item.createdAt || new Date().toISOString(),
+    lastLoginAt: item.lastLoginAt || '',
+    lastSeenAt: item.lastSeenAt || '',
+    loginCount: Number(item.loginCount) || 0,
+    lastIp: item.lastIp || '',
+    lastUserAgent: item.lastUserAgent || '',
+    lastPath: item.lastPath || '',
+    dataUpdatedAt: item.dataUpdatedAt || '',
+    activeSource: item.activeSource || 'registration',
+    totalAnswered: Number(item.totalAnswered) || 0,
+    totalCorrect: Number(item.totalCorrect) || 0,
+    correctRate: Number(item.correctRate) || 0,
+    streakDays: Number(item.streakDays) || 0,
+    lastStudyDate: item.lastStudyDate || '',
+    wrongCount: Number(item.wrongCount) || 0,
+    examCount: Number(item.examCount) || 0,
+  };
+}
+
+function mapActivityRecord(value: unknown): AdminActivityRecord | null {
+  const item = value as Partial<AdminActivityRecord>;
+  if (!item?.id || !item?.userId || !item?.eventType || !item?.createdAt) return null;
+  return {
+    id: item.id,
+    userId: item.userId,
+    studentId: item.studentId || '',
+    name: item.name || '',
+    remarkName: item.remarkName || '',
+    role: item.role === 'admin' ? 'admin' : 'student',
+    eventType: item.eventType,
+    path: item.path || '',
+    detail: item.detail && typeof item.detail === 'object' ? item.detail : {},
+    ip: item.ip || '',
+    userAgent: item.userAgent || '',
+    createdAt: item.createdAt,
+  };
+}
+
 export default function Admin() {
   const navigate = useNavigate();
   const { authState, isAdmin } = useAuth();
@@ -119,7 +200,10 @@ export default function Admin() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [allUserData, setAllUserData] = useState<Record<string, UserData>>({});
+  const [activityUsers, setActivityUsers] = useState<AdminActivityUser[]>([]);
+  const [activityRecords, setActivityRecords] = useState<AdminActivityRecord[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');
 
   // Redirect non-admin
@@ -162,14 +246,40 @@ export default function Admin() {
     };
   }, []);
 
+  const loadActivity = useCallback(async (cancelledRef?: { cancelled: boolean }) => {
+    const isCancelled = () => Boolean(cancelledRef?.cancelled);
+    setIsLoadingActivity(true);
+    try {
+      const result = await api.getAdminActivity();
+      const users = ((result as { users?: unknown[] }).users || [])
+        .map(mapActivityUser)
+        .filter((user): user is AdminActivityUser => Boolean(user));
+      const records = ((result as { records?: unknown[] }).records || [])
+        .map(mapActivityRecord)
+        .filter((record): record is AdminActivityRecord => Boolean(record));
+
+      if (!isCancelled()) {
+        setActivityUsers(users);
+        setActivityRecords(records);
+      }
+    } catch (err) {
+      if (!isCancelled()) {
+        setAdminMessage(err instanceof Error ? err.message : '活跃数据加载失败');
+      }
+    } finally {
+      if (!isCancelled()) setIsLoadingActivity(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!authState.isLoggedIn || !isAdmin()) return;
     const state = { cancelled: false };
     loadUsers(state);
+    loadActivity(state);
     return () => {
       state.cancelled = true;
     };
-  }, [authState.isLoggedIn, isAdmin, loadUsers]);
+  }, [authState.isLoggedIn, isAdmin, loadUsers, loadActivity]);
 
   const handleUpdateUser = useCallback(async (user: User) => {
     const name = window.prompt('修改姓名', user.name);
@@ -180,10 +290,11 @@ export default function Admin() {
       await api.updateUser(user.id, { name, remarkName, practice2Enabled: Boolean(user.practice2Enabled) });
       setAdminMessage('用户信息已更新');
       await loadUsers();
+      await loadActivity();
     } catch (err) {
       setAdminMessage(err instanceof Error ? err.message : '更新失败');
     }
-  }, [loadUsers]);
+  }, [loadUsers, loadActivity]);
 
   const handleTogglePractice2 = useCallback(async (user: User) => {
     if (user.role === 'admin') {
@@ -198,10 +309,11 @@ export default function Admin() {
       });
       setAdminMessage(!user.practice2Enabled ? '已开启练习模式2权限' : '已关闭练习模式2权限');
       await loadUsers();
+      await loadActivity();
     } catch (err) {
       setAdminMessage(err instanceof Error ? err.message : '权限更新失败');
     }
-  }, [loadUsers]);
+  }, [loadUsers, loadActivity]);
 
   const handleDeleteUser = useCallback(async (user: User) => {
     if (user.role === 'admin') {
@@ -214,10 +326,11 @@ export default function Admin() {
       setSelectedUser((current) => (current?.id === user.id ? null : current));
       setAdminMessage('账号已删除');
       await loadUsers();
+      await loadActivity();
     } catch (err) {
       setAdminMessage(err instanceof Error ? err.message : '删除失败');
     }
-  }, [loadUsers]);
+  }, [loadUsers, loadActivity]);
 
   const filteredUsers = useMemo(() => {
     if (!searchQuery.trim()) return allUsers;
@@ -233,11 +346,13 @@ export default function Admin() {
   // Stats
   const stats = useMemo(() => {
     const totalUsers = allUsers.length;
-    const today = new Date().toISOString().split('T')[0];
-    const todayActive = allUsers.filter((u) => {
-      const ud = allUserData[u.id];
-      return ud?.studyStats?.dailyActivity?.some((d) => d.date === today);
-    }).length;
+    const todayActive = activityUsers.length > 0
+      ? activityUsers.filter((u) => isToday(u.lastSeenAt) || isToday(u.dataUpdatedAt) || isToday(u.lastStudyDate)).length
+      : allUsers.filter((u) => {
+          const ud = allUserData[u.id];
+          return ud?.studyStats?.dailyActivity?.some((d) => isToday(d.date));
+        }).length;
+    const onlineNow = activityUsers.filter((u) => isOnline(u.lastSeenAt)).length;
     const totalAnswered = allUsers.reduce(
       (sum, u) => sum + (allUserData[u.id]?.studyStats?.totalAnswered || 0),
       0
@@ -246,8 +361,8 @@ export default function Admin() {
       (sum, u) => sum + (allUserData[u.id]?.examHistory?.length || 0),
       0
     );
-    return { totalUsers, todayActive, totalAnswered, totalExams };
-  }, [allUsers, allUserData]);
+    return { totalUsers, todayActive, onlineNow, totalAnswered, totalExams };
+  }, [allUsers, allUserData, activityUsers]);
 
   // All exam records
   const allExamRecords = useMemo(() => {
@@ -276,13 +391,62 @@ export default function Admin() {
     );
   }, [allExamRecords, searchQuery]);
 
-  const recentUsers = useMemo(() => {
-    return [...allUsers]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 10);
-  }, [allUsers]);
+  const filteredActivityUsers = useMemo(() => {
+    if (!searchQuery.trim()) return activityUsers;
+    const q = searchQuery.toLowerCase();
+    return activityUsers.filter(
+      (u) =>
+        u.studentId.toLowerCase().includes(q) ||
+        u.name.toLowerCase().includes(q) ||
+        (u.remarkName || '').toLowerCase().includes(q) ||
+        (u.lastPath || '').toLowerCase().includes(q)
+    );
+  }, [activityUsers, searchQuery]);
+
+  const filteredActivityRecords = useMemo(() => {
+    if (!searchQuery.trim()) return activityRecords;
+    const q = searchQuery.toLowerCase();
+    return activityRecords.filter(
+      (record) =>
+        record.studentId.toLowerCase().includes(q) ||
+        record.name.toLowerCase().includes(q) ||
+        record.eventType.toLowerCase().includes(q) ||
+        record.path.toLowerCase().includes(q)
+    );
+  }, [activityRecords, searchQuery]);
+
+  const recentActiveUsers = useMemo(
+    () => activityUsers.slice(0, 10),
+    [activityUsers]
+  );
+
+  const adminInsights = useMemo(() => {
+    const dormantUsers = activityUsers.filter((u) => {
+      const lastSeen = new Date(u.lastSeenAt || u.createdAt).getTime();
+      return !Number.isNaN(lastSeen) && Date.now() - lastSeen > 7 * 24 * 60 * 60 * 1000;
+    }).length;
+    const strugglingUsers = activityUsers.filter((u) => u.totalAnswered >= 20 && u.correctRate < 60).length;
+    const noPractice2Users = activityUsers.filter((u) => u.role !== 'admin' && !u.practice2Enabled).length;
+    const highWrongUsers = activityUsers.filter((u) => u.wrongCount >= 10).length;
+
+    return [
+      { label: '7天未活跃', value: dormantUsers, hint: '适合课前提醒或单独关注' },
+      { label: '正确率低于60%', value: strugglingUsers, hint: '建议查看薄弱知识点和错题本' },
+      { label: '未开通专项练习2', value: noPractice2Users, hint: '可按需给重点复习同学开通' },
+      { label: '错题较多', value: highWrongUsers, hint: '建议安排错题回炉复习' },
+    ];
+  }, [activityUsers]);
 
   const handleViewUserDetail = (user: User) => {
+    setSelectedUser(user);
+    setActiveTab('users');
+  };
+
+  const handleViewActivityUser = (activityUser: AdminActivityUser) => {
+    const user = allUsers.find((item) => item.id === activityUser.id) || {
+      ...activityUser,
+      password: '',
+    };
     setSelectedUser(user);
     setActiveTab('users');
   };
@@ -294,6 +458,7 @@ export default function Admin() {
   const navItems: { key: AdminTab; label: string; icon: React.ReactNode }[] = [
     { key: 'overview', label: '概览', icon: <BarChart3 className="w-4 h-4" /> },
     { key: 'users', label: '用户管理', icon: <Users className="w-4 h-4" /> },
+    { key: 'activity', label: '活跃成员', icon: <Activity className="w-4 h-4" /> },
     { key: 'exams', label: '考试记录', icon: <Trophy className="w-4 h-4" /> },
     { key: 'recovery', label: '数据恢复', icon: <Database className="w-4 h-4" /> },
     { key: 'questionBank', label: '题库管理', icon: <BookOpen className="w-4 h-4" /> },
@@ -363,7 +528,11 @@ export default function Admin() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={
-                    activeTab === 'users' ? '搜索学号或姓名...' : '搜索学号、姓名或日期...'
+                    activeTab === 'users'
+                      ? '搜索学号或姓名...'
+                      : activeTab === 'activity'
+                        ? '搜索学号、姓名、路径或记录...'
+                        : '搜索学号、姓名或日期...'
                   }
                   className="w-full pl-9 pr-4 py-2 rounded-pm-lg border border-pm-border bg-white text-sm text-pm-text-primary placeholder:text-pm-text-muted focus:outline-none focus:ring-2 focus:ring-pm-primary/20 focus:border-pm-primary transition-all"
                 />
@@ -373,6 +542,12 @@ export default function Admin() {
             {isLoadingUsers && (
               <div className="mb-4 rounded-pm-lg border border-pm-border bg-white px-4 py-3 text-sm text-pm-text-secondary">
                 正在从服务器加载用户数据...
+              </div>
+            )}
+
+            {isLoadingActivity && activeTab === 'activity' && (
+              <div className="mb-4 rounded-pm-lg border border-pm-border bg-white px-4 py-3 text-sm text-pm-text-secondary">
+                正在加载上线时间与活跃记录...
               </div>
             )}
 
@@ -393,7 +568,7 @@ export default function Admin() {
                   className="space-y-6"
                 >
                   {/* Stat cards */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                     <StatCard
                       icon={<Users className="w-5 h-5" />}
                       label="总注册学生"
@@ -404,6 +579,12 @@ export default function Admin() {
                       icon={<Activity className="w-5 h-5" />}
                       label="今日活跃"
                       value={stats.todayActive}
+                      color="accent"
+                    />
+                    <StatCard
+                      icon={<Wifi className="w-5 h-5" />}
+                      label="当前在线"
+                      value={stats.onlineNow}
                       color="accent"
                     />
                     <StatCard
@@ -420,25 +601,26 @@ export default function Admin() {
                     />
                   </div>
 
-                  {/* Recent users */}
+                  <AdminInsightPanel insights={adminInsights} />
+
+                  {/* Recent active users */}
                   <div className="bg-white rounded-pm-lg border border-pm-border overflow-hidden">
                     <div className="px-6 py-4 border-b border-pm-border flex items-center justify-between">
-                      <h2 className="font-semibold text-pm-text-primary">最近注册学生</h2>
+                      <h2 className="font-semibold text-pm-text-primary">最近活跃成员</h2>
                       <button
-                        onClick={() => setActiveTab('users')}
+                        onClick={() => setActiveTab('activity')}
                         className="text-xs text-pm-primary hover:underline flex items-center gap-0.5"
                       >
                         查看全部 <ChevronRight className="w-3 h-3" />
                       </button>
                     </div>
                     <div className="divide-y divide-pm-border">
-                      {recentUsers.length === 0 ? (
+                      {recentActiveUsers.length === 0 ? (
                         <div className="px-6 py-8 text-center text-sm text-pm-text-muted">
-                          暂无注册学生
+                          暂无活跃记录
                         </div>
                       ) : (
-                        recentUsers.map((u) => {
-                          const ud = allUserData[u.id];
+                        recentActiveUsers.map((u) => {
                           return (
                             <div
                               key={u.id}
@@ -455,16 +637,16 @@ export default function Admin() {
                                     {u.name}
                                   </p>
                                   <p className="text-xs text-pm-text-muted">
-                                    {u.studentId}
+                                    {u.studentId} · {u.lastPath || '未记录页面'}
                                   </p>
                                 </div>
                               </div>
                               <div className="text-right">
                                 <p className="text-xs text-pm-text-secondary">
-                                  答题: {ud?.studyStats?.totalAnswered || 0}
+                                  {isOnline(u.lastSeenAt) ? '在线' : timeAgo(u.lastSeenAt)}
                                 </p>
                                 <p className="text-xs text-pm-text-muted">
-                                  正确率: {ud?.studyStats?.correctRate || 0}%
+                                  答题 {u.totalAnswered} · 正确率 {u.correctRate}%
                                 </p>
                               </div>
                             </div>
@@ -514,6 +696,9 @@ export default function Admin() {
                                 注册时间
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted uppercase tracking-wider">
+                                最后在线
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted uppercase tracking-wider">
                                 答题数
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted uppercase tracking-wider">
@@ -531,7 +716,7 @@ export default function Admin() {
                             {filteredUsers.length === 0 ? (
                               <tr>
                                 <td
-                                  colSpan={8}
+                                  colSpan={9}
                                   className="px-4 py-8 text-center text-sm text-pm-text-muted"
                                 >
                                   未找到匹配的学生
@@ -556,6 +741,9 @@ export default function Admin() {
                                     </td>
                                     <td className="px-4 py-3 text-sm text-pm-text-secondary">
                                       {new Date(u.createdAt).toLocaleDateString('zh-CN')}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-pm-text-secondary">
+                                      {timeAgo(activityUsers.find((item) => item.id === u.id)?.lastSeenAt || u.lastSeenAt)}
                                     </td>
                                     <td className="px-4 py-3 text-sm text-pm-text-secondary">
                                       {ud?.studyStats?.totalAnswered || 0}
@@ -614,6 +802,23 @@ export default function Admin() {
                       </div>
                     </div>
                   )}
+                </motion.div>
+              )}
+
+              {activeTab === 'activity' && (
+                <motion.div
+                  key="activity"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ActivityPanel
+                    users={filteredActivityUsers}
+                    records={filteredActivityRecords}
+                    onViewUser={handleViewActivityUser}
+                    onRefresh={() => loadActivity()}
+                  />
                 </motion.div>
               )}
 
@@ -781,6 +986,207 @@ function StatCard({
         <div>
           <p className="text-xs text-pm-text-muted">{label}</p>
           <p className="text-xl font-bold text-pm-text-primary font-heading">{value}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminInsightPanel({
+  insights,
+}: {
+  insights: { label: string; value: number; hint: string }[];
+}) {
+  return (
+    <div className="bg-white rounded-pm-lg border border-pm-border p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <UserCheck className="w-4 h-4 text-pm-primary" />
+        <h2 className="font-semibold text-pm-text-primary">管理建议</h2>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+        {insights.map((item) => (
+          <div key={item.label} className="rounded-pm-md border border-pm-border bg-pm-bg-primary/40 p-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-sm font-medium text-pm-text-primary">{item.label}</p>
+              <p className="text-xl font-bold text-pm-primary font-heading">{item.value}</p>
+            </div>
+            <p className="text-xs text-pm-text-muted mt-2 leading-5">{item.hint}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function activityLabel(type: string): string {
+  const labels: Record<string, string> = {
+    login: '登录',
+    register: '注册并登录',
+    heartbeat: '在线心跳',
+  };
+  return labels[type] || type;
+}
+
+function ActivityPanel({
+  users,
+  records,
+  onViewUser,
+  onRefresh,
+}: {
+  users: AdminActivityUser[];
+  records: AdminActivityRecord[];
+  onViewUser: (user: AdminActivityUser) => void;
+  onRefresh: () => void;
+}) {
+  const onlineCount = users.filter((user) => isOnline(user.lastSeenAt)).length;
+  const todayCount = users.filter((user) => isToday(user.lastSeenAt) || isToday(user.dataUpdatedAt)).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon={<Wifi className="w-5 h-5" />} label="当前在线" value={onlineCount} color="accent" />
+        <StatCard icon={<Activity className="w-5 h-5" />} label="今日活跃" value={todayCount} color="primary" />
+        <StatCard icon={<Clock className="w-5 h-5" />} label="活跃记录" value={records.length} color="purple" />
+        <StatCard icon={<Users className="w-5 h-5" />} label="成员总数" value={users.length} color="orange" />
+      </div>
+
+      <div className="bg-white rounded-pm-lg border border-pm-border overflow-hidden">
+        <div className="px-6 py-4 border-b border-pm-border flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-pm-text-primary">最近活跃成员名单</h2>
+            <p className="text-xs text-pm-text-muted mt-1">在线状态按最近5分钟心跳判断；旧数据会用最近同步时间兜底。</p>
+          </div>
+          <button
+            onClick={onRefresh}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-pm-md border border-pm-border text-sm text-pm-text-secondary hover:bg-pm-bg-primary"
+          >
+            <RefreshCw className="w-4 h-4" />
+            刷新
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-pm-border bg-pm-bg-primary/50">
+                <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted">状态</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted">成员</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted">最后登录</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted">最后在线</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted">登录次数</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted">最近页面</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted">学习概况</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-pm-border">
+              {users.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-pm-text-muted">
+                    暂无活跃成员记录
+                  </td>
+                </tr>
+              ) : (
+                users.map((user) => (
+                  <tr key={user.id} className="hover:bg-pm-bg-primary/30 transition-colors">
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex px-2 py-0.5 rounded-pm-full text-xs font-medium ${
+                          isOnline(user.lastSeenAt)
+                            ? 'bg-pm-success-light text-pm-success'
+                            : 'bg-pm-bg-primary text-pm-text-secondary'
+                        }`}
+                      >
+                        {isOnline(user.lastSeenAt) ? '在线' : '离线'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-medium text-pm-text-primary">{user.name}</p>
+                      <p className="text-xs text-pm-text-muted">
+                        {user.studentId}{user.remarkName ? ` · ${user.remarkName}` : ''}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-pm-text-secondary whitespace-nowrap">
+                      {formatDateTime(user.lastLoginAt)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-pm-text-secondary whitespace-nowrap">
+                      <span className="block">{timeAgo(user.lastSeenAt)}</span>
+                      <span className="text-xs text-pm-text-muted">{formatDateTime(user.lastSeenAt)}</span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-pm-text-secondary">
+                      {user.loginCount || 0}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-pm-text-secondary max-w-[180px] truncate">
+                      {user.lastPath || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-pm-text-secondary whitespace-nowrap">
+                      答题 {user.totalAnswered} · 错题 {user.wrongCount} · 考试 {user.examCount}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => onViewUser(user)}
+                        className="text-xs text-pm-primary hover:underline font-medium"
+                      >
+                        查看详情
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-pm-lg border border-pm-border overflow-hidden">
+        <div className="px-6 py-4 border-b border-pm-border">
+          <h2 className="font-semibold text-pm-text-primary">最近上线与访问记录</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-pm-border bg-pm-bg-primary/50">
+                <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted">时间</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted">成员</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted">记录</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted">页面</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted">IP</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted">设备</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-pm-border">
+              {records.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-pm-text-muted">
+                    暂无上线记录
+                  </td>
+                </tr>
+              ) : (
+                records.map((record) => (
+                  <tr key={record.id} className="hover:bg-pm-bg-primary/30 transition-colors">
+                    <td className="px-4 py-3 text-sm text-pm-text-secondary whitespace-nowrap">
+                      {formatDateTime(record.createdAt)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-medium text-pm-text-primary">{record.name || record.studentId || '未知用户'}</p>
+                      <p className="text-xs text-pm-text-muted">{record.studentId || record.userId}</p>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-pm-text-secondary">
+                      {activityLabel(record.eventType)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-pm-text-secondary max-w-[180px] truncate">
+                      {record.path || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-pm-text-secondary whitespace-nowrap">
+                      {record.ip || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-pm-text-secondary max-w-[260px] truncate">
+                      {record.userAgent || '-'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

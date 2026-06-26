@@ -7,6 +7,12 @@ interface QuestionsData {
   questions: Question[];
 }
 
+type RawQuestion = Partial<Question> & {
+  id: number;
+  type: string;
+  question?: string;
+};
+
 const typeMapping: Record<string, QuestionType> = {
   single: 'single',
   fill: 'fill',
@@ -14,19 +20,22 @@ const typeMapping: Record<string, QuestionType> = {
   codeFix: 'codeFix',
 };
 
-function normalizeQuestion(q: any): Question {
+function normalizeQuestion(q: RawQuestion): Question {
+  const category = q.category || '未分类';
+  const questionType = typeMapping[q.type] || 'single';
+
   return {
     id: q.id,
     sourceId: q.sourceId,
-    type: typeMapping[q.type] || q.type,
+    type: questionType,
     difficulty: q.difficulty || 'easy',
-    category: q.category,
-    content: q.question,
+    category,
+    content: q.question || q.content || '',
     options: q.options,
     code: q.code,
-    answer: q.answer,
-    explanation: q.explanation,
-    tags: q.tags || [q.category],
+    answer: q.answer ?? '',
+    explanation: q.explanation || '',
+    tags: Array.isArray(q.tags) ? q.tags : [category],
   };
 }
 
@@ -41,7 +50,7 @@ export function useQuestions() {
         if (!res.ok) throw new Error('Failed to load questions');
         return res.json();
       })
-      .then((raw) => {
+      .then((raw: Omit<QuestionsData, 'questions'> & { questions: RawQuestion[] }) => {
         const normalized: QuestionsData = {
           total: raw.total,
           categories: raw.categories,

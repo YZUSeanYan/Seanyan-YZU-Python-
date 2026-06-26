@@ -13,6 +13,11 @@ function getApiBase() {
 
 const API_BASE = getApiBase();
 
+function getCurrentPath() {
+  if (typeof window === 'undefined') return '';
+  return `${window.location.pathname}${window.location.search}`;
+}
+
 // Health-check cache. We re-check at most every HEALTH_TTL_MS, but in-flight
 // checks are de-duplicated so a thundering herd of /api/users etc. does not
 // hammer the server. Negative caches expire faster than positive ones so a
@@ -101,13 +106,19 @@ async function apiUpload(path: string, formData: FormData) {
 // ===== Server API =====
 const serverApi = {
   register: async (studentId: string, name: string, password: string) => {
-    return apiPost('/api/register', { studentId, name, password });
+    return apiPost('/api/register', { studentId, name, password, path: getCurrentPath() || '/login' });
   },
   login: async (studentId: string, password: string) => {
-    return apiPost('/api/login', { studentId, password });
+    return apiPost('/api/login', { studentId, password, path: getCurrentPath() || '/login' });
   },
   getUsers: async () => {
     return apiGet('/api/users') as Promise<{ users: unknown[] }>;
+  },
+  getAdminActivity: async () => {
+    return apiGet('/api/admin/activity?limit=300') as Promise<{ users: unknown[]; records: unknown[] }>;
+  },
+  recordHeartbeat: async (userId: string, currentPath = getCurrentPath()) => {
+    return apiPost('/api/activity/heartbeat', { userId, path: currentPath });
   },
   getUserData: async (userId: string) => {
     return apiGet(`/api/userdata/${userId}`) as Promise<Record<string, unknown>>;
@@ -131,6 +142,7 @@ const serverApi = {
 // ===== LocalStorage API (fallback) =====
 const LS_USERS_KEY = 'seanyan_users';
 const LS_USERDATA_KEY = 'seanyan_userdata';
+const LS_ACTIVITY_KEY = 'seanyan_activity';
 
 interface LocalUser {
   id: string;
@@ -140,6 +152,23 @@ interface LocalUser {
   role: 'student' | 'admin';
   remarkName?: string;
   practice2Enabled?: boolean;
+  createdAt: string;
+  lastLoginAt?: string;
+  lastSeenAt?: string;
+  loginCount?: number;
+  lastIp?: string;
+  lastUserAgent?: string;
+  lastPath?: string;
+}
+
+interface LocalActivityRecord {
+  id: string;
+  userId: string;
+  eventType: string;
+  path: string;
+  detail: Record<string, unknown>;
+  ip: string;
+  userAgent: string;
   createdAt: string;
 }
 
@@ -154,6 +183,51 @@ function getLocalUserData(): Record<string, Record<string, unknown>> {
 }
 function setLocalUserData(data: Record<string, Record<string, unknown>>) {
   localStorage.setItem(LS_USERDATA_KEY, JSON.stringify(data));
+}
+function getLocalActivity(): LocalActivityRecord[] {
+  try { return JSON.parse(localStorage.getItem(LS_ACTIVITY_KEY) || '[]'); } catch { return []; }
+}
+function setLocalActivity(records: LocalActivityRecord[]) {
+  localStorage.setItem(LS_ACTIVITY_KEY, JSON.stringify(records.slice(0, 300)));
+}
+function touchLocalUser(userId: string, eventType: string, currentPath = getCurrentPath()) {
+  const users = getLocalUsers();
+  const index = users.findIndex((u) => u.id === userId);
+  if (index === -1) return;
+
+  const now = new Date().toISOString();
+  users[index] = {
+    ...users[index],
+    lastSeenAt: now,
+    lastPath: currentPath,
+    lastLoginAt: eventType === 'login' || eventType === 'register' ? now : users[index].lastLoginAt,
+    loginCount: eventType === 'login' || eventType === 'register'
+      ? (Number(users[index].loginCount) || 0) + 1
+      : Number(users[index].loginCount) || 0,
+  };
+  setLocalUsers(users);
+
+  const activity = getLocalActivity();
+  activity.unshift({
+    id: `local_act_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    userId,
+    eventType,
+    path: currentPath,
+    detail: { source: 'local' },
+    ip: 'local',
+    userAgent: navigator.userAgent || 'local',
+    createdAt: now,
+  });
+  setLocalActivity(activity);
+}
+
+function parseLocalJson(value: unknown, fallback: unknown) {
+  if (typeof value !== 'string') return value ?? fallback;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
 }
 
 const localApi = {
@@ -174,6 +248,7 @@ const localApi = {
     };
     users.push(newUser);
     setLocalUsers(users);
+    touchLocalUser(newUser.id, 'register', getCurrentPath() || '/login');
     // Also init user data
     const allData = getLocalUserData();
     allData[newUser.id] = {
@@ -213,6 +288,7 @@ const localApi = {
     }
     const user = users.find((u) => u.studentId === studentId && u.password === password);
     if (!user) throw new Error('学号或密码错误');
+    touchLocalUser(user.id, 'login', getCurrentPath() || '/login');
     return {
       success: true,
       user: {
@@ -222,6 +298,12 @@ const localApi = {
         role: user.role,
         remarkName: user.remarkName || '',
         practice2Enabled: user.role === 'admin' || Boolean(user.practice2Enabled),
+        lastLoginAt: user.lastLoginAt || '',
+        lastSeenAt: user.lastSeenAt || '',
+        loginCount: Number(user.loginCount) || 0,
+        lastIp: user.lastIp || '',
+        lastUserAgent: user.lastUserAgent || '',
+        lastPath: user.lastPath || '',
       },
     };
   },
@@ -236,8 +318,67 @@ const localApi = {
         remarkName: u.remarkName || '',
         practice2Enabled: u.role === 'admin' || Boolean(u.practice2Enabled),
         createdAt: u.createdAt,
+        lastLoginAt: u.lastLoginAt || '',
+        lastSeenAt: u.lastSeenAt || '',
+        loginCount: Number(u.loginCount) || 0,
+        lastIp: u.lastIp || '',
+        lastUserAgent: u.lastUserAgent || '',
+        lastPath: u.lastPath || '',
       }));
     return { users };
+  },
+  getAdminActivity: async () => {
+    const users = getLocalUsers();
+    const allData = getLocalUserData();
+    const summaries = users
+      .filter((u) => u.role === 'student' || u.role === 'admin')
+      .map((u) => {
+        const raw = allData[u.id] || {};
+        const stats = parseLocalJson(raw.study_stats, {}) as Record<string, unknown>;
+        const wrong = parseLocalJson(raw.wrong_answers, []);
+        const exams = parseLocalJson(raw.exam_history, []);
+        return {
+          id: u.id,
+          studentId: u.studentId,
+          name: u.name,
+          role: u.role,
+          remarkName: u.remarkName || '',
+          practice2Enabled: u.role === 'admin' || Boolean(u.practice2Enabled),
+          createdAt: u.createdAt,
+          lastLoginAt: u.lastLoginAt || '',
+          lastSeenAt: u.lastSeenAt || u.createdAt,
+          loginCount: Number(u.loginCount) || 0,
+          lastIp: u.lastIp || 'local',
+          lastUserAgent: u.lastUserAgent || navigator.userAgent || '',
+          lastPath: u.lastPath || '',
+          dataUpdatedAt: '',
+          activeSource: u.lastSeenAt ? 'heartbeat' : 'registration',
+          totalAnswered: Number(stats.totalAnswered) || 0,
+          totalCorrect: Number(stats.totalCorrect) || 0,
+          correctRate: Number(stats.correctRate) || 0,
+          streakDays: Number(stats.streakDays) || 0,
+          lastStudyDate: String(stats.lastStudyDate || ''),
+          wrongCount: Array.isArray(wrong) ? wrong.length : 0,
+          examCount: Array.isArray(exams) ? exams.length : 0,
+        };
+      })
+      .sort((a, b) => new Date(b.lastSeenAt || 0).getTime() - new Date(a.lastSeenAt || 0).getTime());
+    const byUser = new Map(users.map((u) => [u.id, u]));
+    const records = getLocalActivity().map((record) => {
+      const user = byUser.get(record.userId);
+      return {
+        ...record,
+        studentId: user?.studentId || '',
+        name: user?.name || '',
+        remarkName: user?.remarkName || '',
+        role: user?.role || 'student',
+      };
+    });
+    return { users: summaries, records };
+  },
+  recordHeartbeat: async (userId: string, currentPath = getCurrentPath()) => {
+    touchLocalUser(userId, 'heartbeat', currentPath);
+    return { success: true, seenAt: new Date().toISOString() };
   },
   getUserData: async (userId: string) => {
     const allData = getLocalUserData();
@@ -299,6 +440,14 @@ export const api = {
   getUsers: async () => {
     const useServer = await checkApiHealth();
     return useServer ? serverApi.getUsers() : localApi.getUsers();
+  },
+  getAdminActivity: async () => {
+    const useServer = await checkApiHealth();
+    return useServer ? serverApi.getAdminActivity() : localApi.getAdminActivity();
+  },
+  recordHeartbeat: async (userId: string, currentPath = getCurrentPath()) => {
+    const useServer = await checkApiHealth();
+    return useServer ? serverApi.recordHeartbeat(userId, currentPath) : localApi.recordHeartbeat(userId, currentPath);
   },
   getUserData: async (userId: string) => {
     const useServer = await checkApiHealth();

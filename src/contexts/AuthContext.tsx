@@ -88,12 +88,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           remarkName: fresh.remarkName || '',
           practice2Enabled: fresh.role === 'admin' || Boolean(fresh.practice2Enabled),
           createdAt: fresh.createdAt || currentUser.createdAt,
+          lastLoginAt: fresh.lastLoginAt || currentUser.lastLoginAt,
+          lastSeenAt: fresh.lastSeenAt || currentUser.lastSeenAt,
+          loginCount: Number(fresh.loginCount) || Number(currentUser.loginCount) || 0,
+          lastIp: fresh.lastIp || currentUser.lastIp,
+          lastUserAgent: fresh.lastUserAgent || currentUser.lastUserAgent,
+          lastPath: fresh.lastPath || currentUser.lastPath,
         };
 
         const changed =
           updatedUser.name !== currentUser.name ||
           updatedUser.remarkName !== currentUser.remarkName ||
-          updatedUser.practice2Enabled !== currentUser.practice2Enabled;
+          updatedUser.practice2Enabled !== currentUser.practice2Enabled ||
+          updatedUser.lastSeenAt !== currentUser.lastSeenAt ||
+          updatedUser.lastLoginAt !== currentUser.lastLoginAt;
 
         if (!changed) return;
         const users = getUsers().filter((item) => item.id !== updatedUser.id);
@@ -109,6 +117,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, [authState.isLoggedIn, authState.user]);
+
+  useEffect(() => {
+    if (!authState.isLoggedIn || !authState.user?.id) return;
+
+    let cancelled = false;
+    const sendHeartbeat = () => {
+      if (cancelled || !authState.user?.id) return;
+      const currentPath = `${window.location.pathname}${window.location.search}`;
+      api.recordHeartbeat(authState.user.id, currentPath).catch(() => {
+        // Online presence is observational; learning data should never depend on it.
+      });
+    };
+
+    sendHeartbeat();
+    const interval = window.setInterval(sendHeartbeat, 60_000);
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') sendHeartbeat();
+    };
+    document.addEventListener('visibilitychange', handleVisible);
+    window.addEventListener('focus', sendHeartbeat);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisible);
+      window.removeEventListener('focus', sendHeartbeat);
+    };
+  }, [authState.isLoggedIn, authState.user?.id]);
 
   const login = useCallback(async (studentId: string, password: string): Promise<User> => {
     const response = await api.login(studentId, password) as { user: Omit<User, 'password'> };
