@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, BarChart3, LogOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, BarChart3, Grid3X3, LogOut } from 'lucide-react';
 
 interface BottomNavProps {
   currentIndex: number;
@@ -10,6 +10,7 @@ interface BottomNavProps {
   isLast: boolean;
   onPrev: () => void;
   onNext: () => void;
+  onPicker: () => void;
   onFinish: () => void;
   onShowResult: () => void;
 }
@@ -23,6 +24,7 @@ export default function BottomNav({
   isLast,
   onPrev,
   onNext,
+  onPicker,
   onFinish,
   onShowResult,
 }: BottomNavProps) {
@@ -75,6 +77,13 @@ export default function BottomNav({
 
         {/* Right: actions */}
         <div className="flex items-center gap-1 sm:gap-2">
+          <button
+            onClick={onPicker}
+            className="lg:hidden flex items-center gap-0.5 px-2 py-2 rounded-pm-md text-xs font-medium text-pm-primary hover:bg-pm-primary-light transition-colors touch-friendly"
+            aria-label="打开题卡"
+          >
+            <Grid3X3 className="w-4 h-4" />
+          </button>
           <button
             onClick={onFinish}
             className="flex items-center gap-0.5 sm:gap-1 px-2 sm:px-3 py-2 rounded-pm-md text-xs sm:text-sm font-medium text-pm-error hover:bg-pm-error-light transition-colors touch-friendly"

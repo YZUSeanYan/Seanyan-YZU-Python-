@@ -50,6 +50,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
   const [results, setResults] = useState<Record<number, boolean>>({});
   const [showResult, setShowResult] = useState(false);
   const [showFinishDialog, setShowFinishDialog] = useState(false);
+  const [showMobilePicker, setShowMobilePicker] = useState(false);
   const [direction, setDirection] = useState(1);
   const [pendingProgress, setPendingProgress] = useState<PracticeProgress | null>(null);
 
@@ -300,6 +301,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
     setCurrentIndex(index);
     setSelectedAnswer(userAnswers[index] || null);
     setSubmitted(answerStates[index] !== 'unanswered');
+    setShowMobilePicker(false);
     scrollToPracticeTop();
   }, [currentIndex, userAnswers, answerStates]);
 
@@ -511,9 +513,51 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
         isLast={currentIndex === filteredQuestions.length - 1}
         onPrev={handlePrev}
         onNext={handleNext}
+        onPicker={() => setShowMobilePicker(true)}
         onFinish={handleFinish}
         onShowResult={() => setShowResult(true)}
       />
+
+      <AnimatePresence>
+        {showMobilePicker && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] bg-pm-bg-overlay lg:hidden"
+            onClick={() => setShowMobilePicker(false)}
+          >
+            <motion.div
+              initial={{ y: 48, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 48, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+              className="absolute inset-x-3 bottom-3 max-h-[78dvh] overflow-y-auto rounded-pm-lg bg-pm-bg-card p-3 shadow-pm-xl"
+              style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))' }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-3 flex items-center justify-between px-1">
+                <div>
+                  <p className="text-sm font-semibold text-pm-text-primary">题卡</p>
+                  <p className="text-xs text-pm-text-secondary">点击题号可直接跳转</p>
+                </div>
+                <button
+                  onClick={() => setShowMobilePicker(false)}
+                  className="rounded-pm-md px-3 py-2 text-sm font-medium text-pm-text-secondary hover:bg-pm-bg-primary"
+                >
+                  关闭
+                </button>
+              </div>
+              <QuestionNavigator
+                questions={filteredQuestions}
+                currentIndex={currentIndex}
+                answerStates={answerStates}
+                onNavigate={handleNavigate}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Finish dialog */}
       <AlertDialog open={showFinishDialog} onOpenChange={setShowFinishDialog}>
