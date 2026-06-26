@@ -5,6 +5,7 @@ import { BookOpen, FileText, LogIn, Lock, Play } from 'lucide-react';
 import { useStudyStats } from '@/hooks/useStudyStats';
 import { useWrongBook } from '@/hooks/useWrongBook';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserData } from '@/contexts/UserDataContext';
 import type { Question, QuestionType, ExamRecord } from '@/types';
 import { useExamPapers, type ExamPaper } from '@/hooks/useExamPapers';
 import ExamHeader from '@/components/simexam/ExamHeader';
@@ -28,6 +29,8 @@ type ExamPhase = 'select-paper' | 'rules' | 'in-progress' | 'submitted';
 type ActiveTab = 'rules' | 'search' | 'helper';
 
 const TOTAL_TIME_MINUTES = 120;
+const SIM_EXAM_PROGRESS_KEY = -3;
+const SIM_EXAM_LOCAL_KEY = 'seanyan_sim_exam_progress';
 const SEAT_NUMBER = '01';
 const typeLabels: Record<QuestionType, string> = {
   single: '选择题',
@@ -68,12 +71,35 @@ function isQuestionCorrect(question: Question, answer?: string) {
   return answer.trim().toLowerCase() === String(correctAnswer[0]).trim().toLowerCase();
 }
 
+interface SimExamProgress {
+  paperId: string;
+  phase: 'rules' | 'in-progress';
+  activeSectionIdx: number;
+  currentQuestionIdx: number;
+  answers: Record<number, string>;
+  timeRemaining: number;
+  timestamp: string;
+  version: 1;
+}
+
+function parseSimExamProgress(raw: string | undefined): SimExamProgress | null {
+  if (!raw) return null;
+  try {
+    const progress = JSON.parse(raw) as SimExamProgress;
+    if (!progress || progress.version !== 1 || !progress.paperId) return null;
+    return progress;
+  } catch {
+    return null;
+  }
+}
+
 export default function SimExam() {
   const navigate = useNavigate();
   const { papers, loading, error } = useExamPapers();
   const { recordAnswer } = useStudyStats();
   const { addWrongAnswer } = useWrongBook();
   const { authState, getCurrentUser, getUserData, saveUserData } = useAuth();
+  const { data, updateMemoryStatus } = useUserData();
 
   const [phase, setPhase] = useState<ExamPhase>('select-paper');
   const [selectedPaper, setSelectedPaper] = useState<ExamPaper | null>(null);
@@ -89,6 +115,8 @@ export default function SimExam() {
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasRestoredProgress = useRef(false);
+  const lastServerProgressSave = useRef(0);
 
   // Countdown timer
   useEffect(() => {
@@ -114,6 +142,60 @@ export default function SimExam() {
   const currentQuestion = currentSection?.questions[currentQuestionIdx];
 
   const totalQuestions = useMemo(() => sections.reduce((s, sec) => s + sec.questions.length, 0), [sections]);
+
+  useEffect(() => {
+    if (hasRestoredProgress.current || papers.length === 0 || phase !== 'select-paper') return;
+    hasRestoredProgress.current = true;
+
+    const serverProgress = parseSimExamProgress(data.memoryStatus[SIM_EXAM_PROGRESS_KEY]);
+    let localProgress: SimExamProgress | null = null;
+    try {
+      localProgress = parseSimExamProgress(localStorage.getItem(SIM_EXAM_LOCAL_KEY) || undefined);
+    } catch { /* ignore */ }
+
+    const progress = [serverProgress, localProgress]
+      .filter(Boolean)
+      .sort((a, b) => new Date(b!.timestamp).getTime() - new Date(a!.timestamp).getTime())[0] || null;
+    if (!progress) return;
+
+    const paper = papers.find((item) => item.id === progress.paperId);
+    if (!paper) return;
+
+    const nextSections = buildSections(paper);
+    setSelectedPaper(paper);
+    setSections(nextSections);
+    setAnswers(progress.answers || {});
+    setActiveSectionIdx(Math.min(progress.activeSectionIdx || 0, Math.max(nextSections.length - 1, 0)));
+    setCurrentQuestionIdx(progress.currentQuestionIdx || 0);
+    setTimeRemaining(progress.timeRemaining || (paper.durationMinutes || TOTAL_TIME_MINUTES) * 60);
+    setPhase(progress.phase === 'in-progress' ? 'in-progress' : 'rules');
+    setActiveTab('rules');
+  }, [data.memoryStatus, papers, phase]);
+
+  useEffect(() => {
+    if (!selectedPaper || (phase !== 'rules' && phase !== 'in-progress')) return;
+
+    const progress: SimExamProgress = {
+      paperId: selectedPaper.id,
+      phase,
+      activeSectionIdx,
+      currentQuestionIdx,
+      answers,
+      timeRemaining,
+      timestamp: new Date().toISOString(),
+      version: 1,
+    };
+    const progressStr = JSON.stringify(progress);
+    try {
+      localStorage.setItem(SIM_EXAM_LOCAL_KEY, progressStr);
+    } catch { /* ignore */ }
+
+    const now = Date.now();
+    if (phase === 'rules' || now - lastServerProgressSave.current > 10_000) {
+      lastServerProgressSave.current = now;
+      updateMemoryStatus((prev) => ({ ...prev, [SIM_EXAM_PROGRESS_KEY]: progressStr }));
+    }
+  }, [activeSectionIdx, answers, currentQuestionIdx, phase, selectedPaper, timeRemaining, updateMemoryStatus]);
 
   const answeredCount = useMemo(
     () => Object.values(answers).filter((answer) => answer.trim() !== '').length,
@@ -237,6 +319,14 @@ export default function SimExam() {
     setScore(totalScore);
     setPhase('submitted');
     setShowSubmitConfirm(false);
+    updateMemoryStatus((prev) => {
+      const next = { ...prev };
+      delete next[SIM_EXAM_PROGRESS_KEY];
+      return next;
+    });
+    try {
+      localStorage.removeItem(SIM_EXAM_LOCAL_KEY);
+    } catch { /* ignore */ }
 
     // Save exam record to user data
     const user = getCurrentUser();
@@ -257,7 +347,7 @@ export default function SimExam() {
         examHistory: updatedExamHistory,
       });
     }
-  }, [sections, answers, totalQuestions, selectedPaper, recordAnswer, addWrongAnswer, getCurrentUser, getUserData, saveUserData, timeRemaining]);
+  }, [sections, answers, totalQuestions, selectedPaper, recordAnswer, addWrongAnswer, getCurrentUser, getUserData, saveUserData, timeRemaining, updateMemoryStatus]);
 
   // Auto-submit on time up. We intentionally depend only on isTimeUp +
   // phase; handleSubmit's identity changes too often (answers/timeRemaining

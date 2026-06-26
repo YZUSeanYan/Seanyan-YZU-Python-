@@ -105,6 +105,56 @@ function mergeWrongAnswers(...sources: Array<WrongAnswer[] | null | undefined>):
   );
 }
 
+function getProgressTimestamp(value: unknown): number {
+  if (typeof value !== 'string') return 0;
+  try {
+    const parsed = JSON.parse(value) as { timestamp?: string };
+    return parsed.timestamp ? new Date(parsed.timestamp).getTime() || 0 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function mergeMemoryStatus(...sources: Array<Record<number, string> | null | undefined>): Record<number, string> {
+  const merged: Record<number, string> = {};
+
+  sources.forEach((source) => {
+    if (!source || typeof source !== 'object') return;
+    Object.entries(source).forEach(([key, value]) => {
+      if (typeof value !== 'string') return;
+      const numericKey = Number(key);
+      const existing = merged[numericKey];
+      const incomingTime = getProgressTimestamp(value);
+      const existingTime = getProgressTimestamp(existing);
+
+      if (!existing || incomingTime >= existingTime) {
+        merged[numericKey] = value;
+      }
+    });
+  });
+
+  return merged;
+}
+
+function loadStandaloneProgress(): Record<number, string> {
+  const result: Record<number, string> = {};
+  const mappings: Array<[number, string]> = [
+    [-1, 'seanyan_practice_progress'],
+    [-1, 'pymaster_practice_progress'],
+    [-2, 'seanyan_practice2_progress'],
+    [-3, 'seanyan_sim_exam_progress'],
+  ];
+
+  mappings.forEach(([key, storageKey]) => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) result[key] = raw;
+    } catch { /* ignore */ }
+  });
+
+  return result;
+}
+
 // ===== Keys for localStorage (cache) =====
 const LS_DATA_KEY = 'seanyan_user_data_cache';
 
@@ -115,9 +165,15 @@ const UserDataContext = createContext<UserDataContextType | null>(null);
 function loadFromCache(): UserDataState {
   try {
     const raw = localStorage.getItem(LS_DATA_KEY);
-    if (raw) return normalizeUserData(JSON.parse(raw));
+    if (raw) {
+      const cached = normalizeUserData(JSON.parse(raw));
+      return {
+        ...cached,
+        memoryStatus: mergeMemoryStatus(cached.memoryStatus, loadStandaloneProgress()),
+      };
+    }
   } catch { /* ignore */ }
-  return { ...defaultData };
+  return { ...defaultData, memoryStatus: loadStandaloneProgress() };
 }
 
 // ===== Helper: save to localStorage cache =====
@@ -195,14 +251,15 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
           if (serverData.memory_status) parsed.memoryStatus = JSON.parse(serverData.memory_status as string);
         } catch { /* ignore */ }
         try {
-          if (serverData.exam_history) parsed.examHistory = JSON.parse(serverData.exam_history as string);
-        } catch { /* ignore */ }
-        // Backward-compat: older rows may only have practice_progress populated.
-        // Treat it as memoryStatus if memory_status is empty.
-        try {
-          if (!serverData.memory_status && serverData.practice_progress) {
-            parsed.memoryStatus = JSON.parse(serverData.practice_progress as string);
+          if (serverData.practice_progress) {
+            parsed.memoryStatus = mergeMemoryStatus(
+              parsed.memoryStatus,
+              JSON.parse(serverData.practice_progress as string)
+            );
           }
+        } catch { /* ignore */ }
+        try {
+          if (serverData.exam_history) parsed.examHistory = JSON.parse(serverData.exam_history as string);
         } catch { /* ignore */ }
 
         const hasServerData = (
@@ -219,9 +276,11 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
             studyStats: parsed.studyStats && (parsed.studyStats as StudyStats).totalAnswered > 0
               ? parsed.studyStats as StudyStats
               : current.studyStats,
-            memoryStatus: parsed.memoryStatus && Object.keys(parsed.memoryStatus).length > 0
-              ? parsed.memoryStatus as Record<number, string>
-              : current.memoryStatus,
+            memoryStatus: mergeMemoryStatus(
+              parsed.memoryStatus as Record<number, string> | undefined,
+              current.memoryStatus,
+              loadStandaloneProgress()
+            ),
             examHistory: parsed.examHistory && (parsed.examHistory as unknown[]).length > 0
               ? parsed.examHistory as unknown[]
               : current.examHistory,

@@ -20,7 +20,7 @@ interface RetryQuestion {
   wrongCount: number;
 }
 
-interface Practice2Progress {
+interface PracticeProgress {
   filters?: {
     type?: QuestionType | 'all';
     difficulty?: Difficulty | 'all';
@@ -34,10 +34,34 @@ interface Practice2Progress {
   version?: number;
 }
 
-function parsePractice2Progress(raw: string | undefined | null): Practice2Progress | null {
+interface SimExamProgress {
+  paperId?: string;
+  answers?: Record<number, string>;
+  timestamp?: string;
+  version?: number;
+}
+
+function normalizeAnswer(answer: string) {
+  const trimmed = answer.trim();
+  const match = trimmed.match(/^([A-D])[.\s]?/i);
+  return match ? match[1].toUpperCase() : trimmed.toLowerCase();
+}
+
+function isQuestionCorrect(question: Question, answer: string) {
+  if (!answer.trim()) return false;
+  const correctAnswer = Array.isArray(question.answer) ? question.answer : [question.answer];
+  if (question.type === 'single') return normalizeAnswer(answer) === normalizeAnswer(String(correctAnswer[0]));
+  if (Array.isArray(question.answer)) {
+    const answerParts = answer.split('|').map((part) => part.trim().toLowerCase());
+    return question.answer.every((part, index) => answerParts[index] === String(part).trim().toLowerCase());
+  }
+  return answer.trim().toLowerCase() === String(correctAnswer[0]).trim().toLowerCase();
+}
+
+function parsePracticeProgress(raw: string | undefined | null): PracticeProgress | null {
   if (!raw) return null;
   try {
-    const progress = JSON.parse(raw) as Practice2Progress;
+    const progress = JSON.parse(raw) as PracticeProgress;
     if (!progress || progress.version !== 1 || !Array.isArray(progress.answerStates)) return null;
     return progress;
   } catch {
@@ -45,15 +69,34 @@ function parsePractice2Progress(raw: string | undefined | null): Practice2Progre
   }
 }
 
-function getLocalPractice2Progress(): Practice2Progress | null {
+function parseSimExamProgress(raw: string | undefined | null): SimExamProgress | null {
+  if (!raw) return null;
   try {
-    return parsePractice2Progress(localStorage.getItem('seanyan_practice2_progress'));
+    const progress = JSON.parse(raw) as SimExamProgress;
+    if (!progress || progress.version !== 1 || !progress.answers) return null;
+    return progress;
   } catch {
     return null;
   }
 }
 
-function applyPracticeFilters(questions: Question[], filters: Practice2Progress['filters']): Question[] {
+function getLocalProgress(storageKey: string): PracticeProgress | null {
+  try {
+    return parsePracticeProgress(localStorage.getItem(storageKey));
+  } catch {
+    return null;
+  }
+}
+
+function getLocalSimExamProgress(): SimExamProgress | null {
+  try {
+    return parseSimExamProgress(localStorage.getItem('seanyan_sim_exam_progress'));
+  } catch {
+    return null;
+  }
+}
+
+function applyPracticeFilters(questions: Question[], filters: PracticeProgress['filters']): Question[] {
   let filtered = [...questions];
   if (!filters) return filtered;
 
@@ -78,7 +121,7 @@ function applyPracticeFilters(questions: Question[], filters: Practice2Progress[
 }
 
 export default function WrongBook() {
-  const { getById } = useQuestions();
+  const { getById, questions } = useQuestions();
   const { papers } = useExamPapers();
   const { data } = useUserData();
   const {
@@ -121,19 +164,25 @@ export default function WrongBook() {
   );
 
   useEffect(() => {
-    if (examQuestions.length === 0) return;
+    if (questions.length === 0 && examQuestions.length === 0) return;
 
     const candidates = [
-      parsePractice2Progress(data.memoryStatus[-2]),
-      getLocalPractice2Progress(),
-    ].filter(Boolean) as Practice2Progress[];
+      { progress: parsePracticeProgress(data.memoryStatus[-1]), pool: questions },
+      { progress: getLocalProgress('seanyan_practice_progress'), pool: questions },
+      { progress: getLocalProgress('pymaster_practice_progress'), pool: questions },
+      { progress: parsePracticeProgress(data.memoryStatus[-2]), pool: examQuestions },
+      { progress: getLocalProgress('seanyan_practice2_progress'), pool: examQuestions },
+    ].filter((item) => item.progress && item.pool.length > 0) as Array<{
+      progress: PracticeProgress;
+      pool: Question[];
+    }>;
 
     const existingIds = new Set(wrongAnswers.map((item) => item.questionId));
     const recovered: WrongAnswer[] = [];
 
     candidates.forEach((progress) => {
-      const pool = applyPracticeFilters(examQuestions, progress.filters);
-      progress.answerStates?.forEach((state, index) => {
+      const pool = applyPracticeFilters(progress.pool, progress.progress.filters);
+      progress.progress.answerStates?.forEach((state, index) => {
         if (state !== 'wrong') return;
         const question = pool[index];
         if (!question || existingIds.has(question.id)) return;
@@ -141,7 +190,32 @@ export default function WrongBook() {
         existingIds.add(question.id);
         recovered.push({
           questionId: question.id,
-          userAnswer: String(progress.userAnswers?.[index] || ''),
+          userAnswer: String(progress.progress.userAnswers?.[index] || ''),
+          correctAnswer: Array.isArray(question.answer) ? question.answer.join(' | ') : question.answer,
+          wrongCount: 1,
+          lastWrongAt: progress.progress.timestamp || new Date().toISOString(),
+          isMastered: false,
+          attempts: 0,
+        });
+      });
+    });
+
+    const simExamCandidates = [
+      parseSimExamProgress(data.memoryStatus[-3]),
+      getLocalSimExamProgress(),
+    ].filter(Boolean) as SimExamProgress[];
+
+    simExamCandidates.forEach((progress) => {
+      Object.entries(progress.answers || {}).forEach(([questionId, answer]) => {
+        const id = Number(questionId);
+        if (!answer?.trim() || existingIds.has(id)) return;
+        const question = examQuestionById.map.get(id) || examQuestionById.legacyMap.get(id);
+        if (!question || isQuestionCorrect(question, answer)) return;
+
+        existingIds.add(id);
+        recovered.push({
+          questionId: id,
+          userAnswer: answer,
           correctAnswer: Array.isArray(question.answer) ? question.answer.join(' | ') : question.answer,
           wrongCount: 1,
           lastWrongAt: progress.timestamp || new Date().toISOString(),
@@ -154,7 +228,7 @@ export default function WrongBook() {
     if (recovered.length > 0) {
       addWrongAnswers(recovered);
     }
-  }, [addWrongAnswers, data.memoryStatus, examQuestions, wrongAnswers]);
+  }, [addWrongAnswers, data.memoryStatus, examQuestionById, examQuestions, questions, wrongAnswers]);
 
   // Enrich wrong answers with question data
   const enrichedWrongAnswers = useMemo(() => {
