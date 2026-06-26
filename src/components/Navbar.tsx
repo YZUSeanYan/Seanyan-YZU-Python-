@@ -1,19 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Flame, LogIn, LogOut, ShieldCheck, ChevronDown } from 'lucide-react';
 import { PythonLogo } from './SvgAssets';
 import { useStudyStats } from '@/hooks/useStudyStats';
 import { useAuth } from '@/hooks/useAuth';
-
-const navLinks = [
-  { to: '/', label: '首页' },
-  { to: '/practice', label: '练习' },
-  { to: '/memory', label: '背题' },
-  { to: '/sim-exam', label: '仿真' },
-  { to: '/wrongbook', label: '错题本' },
-  { to: '/stats', label: '统计' },
-];
 
 export default function Navbar() {
   const location = useLocation();
@@ -23,6 +14,19 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const canUsePractice2 = authState.user?.role === 'admin' || Boolean(authState.user?.practice2Enabled);
+  const navLinks = useMemo(
+    () => [
+      { to: '/', label: '首页' },
+      { to: '/practice', label: '练习' },
+      ...(canUsePractice2 ? [{ to: '/practice-2', label: '专项练习2' }] : []),
+      { to: '/memory', label: '背题' },
+      { to: '/sim-exam', label: '仿真' },
+      { to: '/wrongbook', label: '错题本' },
+      { to: '/stats', label: '统计' },
+    ],
+    [canUsePractice2]
+  );
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 100);

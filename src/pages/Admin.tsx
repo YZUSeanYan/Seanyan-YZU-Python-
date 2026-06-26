@@ -85,6 +85,8 @@ function mapServerUser(value: unknown): User | null {
     name: item.name,
     password: item.password || '',
     role: item.role || 'student',
+    remarkName: item.remarkName || '',
+    practice2Enabled: item.role === 'admin' || Boolean(item.practice2Enabled),
     createdAt: item.createdAt || new Date().toISOString(),
   };
 }
@@ -175,11 +177,29 @@ export default function Admin() {
     const remarkName = window.prompt('备注姓名/昵称', user.remarkName || '');
     if (remarkName === null) return;
     try {
-      await api.updateUser(user.id, { name, remarkName });
+      await api.updateUser(user.id, { name, remarkName, practice2Enabled: Boolean(user.practice2Enabled) });
       setAdminMessage('用户信息已更新');
       await loadUsers();
     } catch (err) {
       setAdminMessage(err instanceof Error ? err.message : '更新失败');
+    }
+  }, [loadUsers]);
+
+  const handleTogglePractice2 = useCallback(async (user: User) => {
+    if (user.role === 'admin') {
+      setAdminMessage('管理员默认拥有练习模式2权限');
+      return;
+    }
+    try {
+      await api.updateUser(user.id, {
+        name: user.name,
+        remarkName: user.remarkName || '',
+        practice2Enabled: !user.practice2Enabled,
+      });
+      setAdminMessage(!user.practice2Enabled ? '已开启练习模式2权限' : '已关闭练习模式2权限');
+      await loadUsers();
+    } catch (err) {
+      setAdminMessage(err instanceof Error ? err.message : '权限更新失败');
     }
   }, [loadUsers]);
 
@@ -205,7 +225,8 @@ export default function Admin() {
     return allUsers.filter(
       (u) =>
         u.studentId.toLowerCase().includes(q) ||
-        u.name.toLowerCase().includes(q)
+        u.name.toLowerCase().includes(q) ||
+        (u.remarkName || '').toLowerCase().includes(q)
     );
   }, [allUsers, searchQuery]);
 
@@ -499,6 +520,9 @@ export default function Admin() {
                                 正确率
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted uppercase tracking-wider">
+                                练习2权限
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-pm-text-muted uppercase tracking-wider">
                                 操作
                               </th>
                             </tr>
@@ -507,7 +531,7 @@ export default function Admin() {
                             {filteredUsers.length === 0 ? (
                               <tr>
                                 <td
-                                  colSpan={7}
+                                  colSpan={8}
                                   className="px-4 py-8 text-center text-sm text-pm-text-muted"
                                 >
                                   未找到匹配的学生
@@ -546,6 +570,19 @@ export default function Admin() {
                                       >
                                         {ud?.studyStats?.correctRate || 0}%
                                       </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <button
+                                        onClick={() => handleTogglePractice2(u)}
+                                        disabled={u.role === 'admin'}
+                                        className={`inline-flex min-w-[64px] justify-center rounded-pm-full px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${
+                                          u.practice2Enabled
+                                            ? 'bg-pm-success-light text-pm-success'
+                                            : 'bg-pm-bg-primary text-pm-text-secondary hover:bg-pm-primary-light hover:text-pm-primary'
+                                        }`}
+                                      >
+                                        {u.practice2Enabled ? '已开启' : '未开启'}
+                                      </button>
                                     </td>
                                     <td className="px-4 py-3">
                                       <button

@@ -4,8 +4,16 @@ import type { QuestionType, Difficulty } from '@/types';
 
 type AnswerState = 'unanswered' | 'correct' | 'wrong' | 'skipped';
 
-const PROGRESS_STORAGE_KEY = -1; // Special key in memoryStatus for practice progress
+const PROGRESS_STORAGE_KEYS = {
+  all: -1,
+  practice2: -2,
+} as const;
+const LOCAL_STORAGE_KEYS = {
+  all: 'seanyan_practice_progress',
+  practice2: 'seanyan_practice2_progress',
+} as const;
 const DEBOUNCE_MS = 500;
+export type PracticeProgressScope = keyof typeof PROGRESS_STORAGE_KEYS;
 
 export interface PracticeProgress {
   currentQuestionId: number;
@@ -15,7 +23,7 @@ export interface PracticeProgress {
     difficulty: Difficulty | 'all';
     category: string;
     searchQuery: string;
-    source: 'basic' | 'advanced' | 'all';
+    source: 'basic' | 'advanced' | 'all' | 'practice2';
   };
   userAnswers: Record<number, string | null>;
   answerStates: AnswerState[];
@@ -40,7 +48,7 @@ function parseProgress(str: string | undefined): PracticeProgress | null {
 }
 
 export function getSavedProgress(memoryStatus: Record<number, string>): PracticeProgress | null {
-  return parseProgress(memoryStatus[PROGRESS_STORAGE_KEY]);
+  return parseProgress(memoryStatus[PROGRESS_STORAGE_KEYS.all]);
 }
 
 // Check if progress exists in localStorage (for components without UserDataContext access)
@@ -58,28 +66,38 @@ export function hasSavedProgress(): boolean {
 }
 
 export function clearProgress(updateMemoryStatus: (updater: (prev: Record<number, string>) => Record<number, string>) => void) {
-  updateMemoryStatus((prev) => {
-    const next = { ...prev };
-    delete next[PROGRESS_STORAGE_KEY];
-    return next;
-  });
-  // Also clear legacy localStorage
-  localStorage.removeItem('seanyan_practice_progress');
+  clearScopedProgress(updateMemoryStatus, 'all');
 }
 
-export function usePracticeProgress() {
+export function clearScopedProgress(
+  updateMemoryStatus: (updater: (prev: Record<number, string>) => Record<number, string>) => void,
+  scope: PracticeProgressScope = 'all'
+) {
+  const progressStorageKey = PROGRESS_STORAGE_KEYS[scope];
+  updateMemoryStatus((prev) => {
+    const next = { ...prev };
+    delete next[progressStorageKey];
+    return next;
+  });
+  localStorage.removeItem(LOCAL_STORAGE_KEYS[scope]);
+  if (scope === 'all') localStorage.removeItem('pymaster_practice_progress');
+}
+
+export function usePracticeProgress(scope: PracticeProgressScope = 'all') {
   const { data, updateMemoryStatus } = useUserData();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const progressStorageKey = PROGRESS_STORAGE_KEYS[scope];
+  const localStorageKey = LOCAL_STORAGE_KEYS[scope];
 
   // Read progress from server-synced memoryStatus (with localStorage fallback)
   const getProgress = useCallback((): PracticeProgress | null => {
     // 1. Try server-synced data first
-    const serverProgress = parseProgress(data.memoryStatus[PROGRESS_STORAGE_KEY]);
+    const serverProgress = parseProgress(data.memoryStatus[progressStorageKey]);
     if (serverProgress) return serverProgress;
 
     // 2. Fallback to legacy localStorage (migration)
     try {
-      const raw = localStorage.getItem('seanyan_practice_progress');
+      const raw = localStorage.getItem(localStorageKey);
       if (raw) {
         const parsed = JSON.parse(raw) as PracticeProgress;
         if (parsed && parsed.version === 1) {
@@ -90,12 +108,12 @@ export function usePracticeProgress() {
     } catch { /* ignore */ }
 
     return null;
-  }, [data.memoryStatus]);
+  }, [data.memoryStatus, progressStorageKey, localStorageKey]);
 
   const save = useCallback((
     currentQuestionId: number,
     currentIndex: number,
-    filters: { type: QuestionType | 'all'; difficulty: Difficulty | 'all'; category: string; searchQuery: string; source: 'basic' | 'advanced' | 'all' },
+    filters: { type: QuestionType | 'all'; difficulty: Difficulty | 'all'; category: string; searchQuery: string; source: 'basic' | 'advanced' | 'all' | 'practice2' },
     userAnswers: Record<number, string | null>,
     answerStates: AnswerState[],
     results: Record<number, boolean>
@@ -115,19 +133,19 @@ export function usePracticeProgress() {
       const progressStr = JSON.stringify(progress);
 
       // Save to server-synced memoryStatus
-      updateMemoryStatus((prev) => ({ ...prev, [PROGRESS_STORAGE_KEY]: progressStr }));
+      updateMemoryStatus((prev) => ({ ...prev, [progressStorageKey]: progressStr }));
 
       // Also save to localStorage as backup
       try {
-        localStorage.setItem('seanyan_practice_progress', progressStr);
+        localStorage.setItem(localStorageKey, progressStr);
       } catch { /* ignore */ }
     }, DEBOUNCE_MS);
-  }, [updateMemoryStatus]);
+  }, [updateMemoryStatus, progressStorageKey, localStorageKey]);
 
   const saveImmediate = useCallback((
     currentQuestionId: number,
     currentIndex: number,
-    filters: { type: QuestionType | 'all'; difficulty: Difficulty | 'all'; category: string; searchQuery: string; source: 'basic' | 'advanced' | 'all' },
+    filters: { type: QuestionType | 'all'; difficulty: Difficulty | 'all'; category: string; searchQuery: string; source: 'basic' | 'advanced' | 'all' | 'practice2' },
     userAnswers: Record<number, string | null>,
     answerStates: AnswerState[],
     results: Record<number, boolean>
@@ -146,17 +164,17 @@ export function usePracticeProgress() {
     const progressStr = JSON.stringify(progress);
 
     // Save to server-synced memoryStatus
-    updateMemoryStatus((prev) => ({ ...prev, [PROGRESS_STORAGE_KEY]: progressStr }));
+    updateMemoryStatus((prev) => ({ ...prev, [progressStorageKey]: progressStr }));
 
     // Also save to localStorage as backup
     try {
-      localStorage.setItem('seanyan_practice_progress', progressStr);
+      localStorage.setItem(localStorageKey, progressStr);
     } catch { /* ignore */ }
-  }, [updateMemoryStatus]);
+  }, [updateMemoryStatus, progressStorageKey, localStorageKey]);
 
   const clearSavedProgress = useCallback(() => {
-    clearProgress(updateMemoryStatus);
-  }, [updateMemoryStatus]);
+    clearScopedProgress(updateMemoryStatus, scope);
+  }, [updateMemoryStatus, scope]);
 
   return { save, saveImmediate, getSavedProgress: getProgress, hasSavedProgress, clearProgress: clearSavedProgress };
 }

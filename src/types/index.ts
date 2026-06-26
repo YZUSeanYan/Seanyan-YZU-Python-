@@ -83,6 +83,7 @@ export interface User {
   password: string; // 明文存储（本地应用，非生产环境）
   role: 'student' | 'admin';
   remarkName?: string;
+  practice2Enabled?: boolean;
   createdAt: string;
 }
 

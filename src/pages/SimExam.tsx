@@ -110,23 +110,19 @@ export default function SimExam() {
     };
   }, [phase]);
 
-  // Auto-submit on time up
-  useEffect(() => {
-    if (isTimeUp && phase === 'in-progress') {
-      setTimeout(() => handleSubmit(), 2000);
-    }
-  }, [isTimeUp, phase]);
-
   const currentSection = sections[activeSectionIdx];
   const currentQuestion = currentSection?.questions[currentQuestionIdx];
 
   const totalQuestions = useMemo(() => sections.reduce((s, sec) => s + sec.questions.length, 0), [sections]);
 
-  const answeredCount = useMemo(() => Object.keys(answers).length, [answers]);
+  const answeredCount = useMemo(
+    () => Object.values(answers).filter((answer) => answer.trim() !== '').length,
+    [answers]
+  );
 
   const sectionAnsweredCount = useMemo(() => {
     if (!currentSection) return 0;
-    return currentSection.questions.filter((q) => answers[q.id] !== undefined && answers[q.id] !== '').length;
+    return currentSection.questions.filter((q) => answers[q.id]?.trim()).length;
   }, [currentSection, answers]);
 
   const globalQuestionNumber = useMemo(() => {
@@ -203,18 +199,17 @@ export default function SimExam() {
 
     sections.forEach((section) => {
       let sectionCorrect = 0;
-      let sectionTotal = 0;
+      const sectionTotal = section.questions.length;
 
       section.questions.forEach((q) => {
         const ans = answers[q.id];
-        if (ans) {
+        if (ans?.trim()) {
           const correctAnswer = Array.isArray(q.answer) ? q.answer.join(' | ') : q.answer;
           const isCorrect = isQuestionCorrect(q, ans);
           if (isCorrect) {
             correct++;
             sectionCorrect++;
           }
-          sectionTotal++;
 
           recordAnswer(
             {
@@ -263,6 +258,14 @@ export default function SimExam() {
       });
     }
   }, [sections, answers, totalQuestions, selectedPaper, recordAnswer, addWrongAnswer, getCurrentUser, getUserData, saveUserData, timeRemaining]);
+
+  // Auto-submit on time up
+  useEffect(() => {
+    if (isTimeUp && phase === 'in-progress') {
+      const timer = setTimeout(() => handleSubmit(), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isTimeUp, phase, handleSubmit]);
 
   const formatTime = useCallback((seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -492,9 +495,9 @@ export default function SimExam() {
 
         {/* 4. Center Question Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {activeTab === 'rules' && phase === 'rules' ? (
+          {phase === 'rules' ? (
             <ExamRules onStart={handleStartExam} paperTitle={selectedPaper?.title} sections={sections} />
-          ) : activeTab === 'rules' && phase === 'in-progress' ? (
+          ) : activeTab === 'rules' ? (
             <>
               <div className="flex-1 overflow-y-auto p-6">
                 <AnimatePresence mode="wait">

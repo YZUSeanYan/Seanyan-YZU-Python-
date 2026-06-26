@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { QuestionType, Difficulty } from '@/types';
 import { useQuestions } from '@/hooks/useQuestions';
+import { useExamPapers } from '@/hooks/useExamPapers';
 import { useWrongBook } from '@/hooks/useWrongBook';
 import { useStudyStats } from '@/hooks/useStudyStats';
 import FilterPanel from '@/components/practice/FilterPanel';
@@ -15,6 +16,7 @@ import { usePracticeProgress, type PracticeProgress } from '@/hooks/usePracticeP
 import { playErrorBuzz, playFinish, playNext, playSelect, playSuccessChime } from '@/lib/sound';
 
 type AnswerState = 'unanswered' | 'correct' | 'wrong' | 'skipped';
+type PracticeMode = 'all' | 'exam';
 
 function scrollToPracticeTop() {
   window.requestAnimationFrame(() => {
@@ -22,11 +24,13 @@ function scrollToPracticeTop() {
   });
 }
 
-export default function Practice() {
+export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
   const { questions, categories, loading } = useQuestions();
+  const { papers, loading: examLoading } = useExamPapers();
   const { addWrongAnswer } = useWrongBook();
   const { recordAnswer } = useStudyStats();
-  const { save, saveImmediate, getSavedProgress, clearProgress } = usePracticeProgress();
+  const isExamMode = mode === 'exam';
+  const { save, saveImmediate, getSavedProgress, clearProgress } = usePracticeProgress(isExamMode ? 'practice2' : 'all');
   const hasCheckedResume = useRef(false);
   const hasResumed = useRef(false);
   const isRestoring = useRef(false);
@@ -49,9 +53,30 @@ export default function Practice() {
   const [direction, setDirection] = useState(1);
   const [pendingProgress, setPendingProgress] = useState<PracticeProgress | null>(null);
 
+  const examQuestions = useMemo(
+    () =>
+      papers.flatMap((paper) =>
+        paper.questions.map((question) => ({
+          ...question,
+          tags: Array.from(new Set([...(question.tags || []), '三套卷专项', paper.title])),
+        }))
+      ),
+    [papers]
+  );
+
+  const questionPool = isExamMode ? examQuestions : questions;
+  const isLoading = isExamMode ? examLoading : loading;
+  const availableCategories = useMemo(
+    () =>
+      isExamMode
+        ? Array.from(new Set(questionPool.map((question) => question.category).filter(Boolean)))
+        : categories,
+    [isExamMode, questionPool, categories]
+  );
+
   // Filtered questions
   const filteredQuestions = useMemo(() => {
-    let filtered = [...questions];
+    let filtered = [...questionPool];
 
     if (selectedType !== 'all') {
       filtered = filtered.filter((q) => q.type === selectedType);
@@ -71,7 +96,7 @@ export default function Practice() {
       );
     }
     return filtered;
-  }, [questions, selectedType, selectedDifficulty, selectedCategory, searchQuery]);
+  }, [questionPool, selectedType, selectedDifficulty, selectedCategory, searchQuery]);
 
   // Initialize answer states when filtered questions change
   useEffect(() => {
@@ -87,7 +112,7 @@ export default function Practice() {
 
   // Restore saved practice progress once questions and user data are ready.
   useEffect(() => {
-    if (loading || questions.length === 0 || hasCheckedResume.current) return;
+    if (isLoading || questionPool.length === 0 || hasCheckedResume.current) return;
     hasCheckedResume.current = true;
 
     const progress = getSavedProgress();
@@ -102,7 +127,7 @@ export default function Practice() {
     setSelectedDifficulty(progress.filters.difficulty);
     setSelectedCategory(progress.filters.category);
     setSearchQuery(progress.filters.searchQuery || '');
-  }, [loading, questions.length, getSavedProgress]);
+  }, [isLoading, questionPool.length, getSavedProgress]);
 
   useEffect(() => {
     if (!pendingProgress || filteredQuestions.length === 0) return;
@@ -140,7 +165,7 @@ export default function Practice() {
         difficulty: selectedDifficulty,
         category: selectedCategory,
         searchQuery,
-        source: 'all',
+        source: isExamMode ? 'practice2' : 'all',
       },
       userAnswers,
       answerStates,
@@ -158,6 +183,7 @@ export default function Practice() {
     results,
     showResult,
     save,
+    isExamMode,
   ]);
 
   const handleSelectAnswer = useCallback((answer: string) => {
@@ -327,7 +353,7 @@ export default function Practice() {
           difficulty: selectedDifficulty,
           category: selectedCategory,
           searchQuery,
-          source: 'all',
+          source: isExamMode ? 'practice2' : 'all',
         },
         {},
         new Array(filteredQuestions.length).fill('unanswered'),
@@ -340,13 +366,13 @@ export default function Practice() {
     setSelectedAnswer(null);
     setSubmitted(false);
     scrollToPracticeTop();
-  }, [currentQuestion, filteredQuestions.length, saveImmediate, searchQuery, selectedCategory, selectedDifficulty, selectedType]);
+  }, [currentQuestion, filteredQuestions.length, saveImmediate, searchQuery, selectedCategory, selectedDifficulty, selectedType, isExamMode]);
 
   const correctCount = answerStates.filter((s) => s === 'correct').length;
   const wrongCount = answerStates.filter((s) => s === 'wrong').length;
   const skippedCount = answerStates.filter((s) => s === 'skipped').length;
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-[60dvh] flex items-center justify-center">
         <div className="text-center">
@@ -383,12 +409,22 @@ export default function Practice() {
       transition={{ duration: 0.3 }}
     >
       {/* Filter header */}
+      {isExamMode && (
+        <div className="max-w-[1200px] mx-auto px-6 pt-6">
+          <div className="rounded-pm-lg border border-pm-primary/20 bg-pm-primary-light px-4 py-3">
+            <p className="text-sm font-semibold text-pm-primary">练习模式2：三套卷专项练习</p>
+            <p className="mt-1 text-xs text-pm-text-secondary">
+              当前只包含三套仿真卷题目，适合考前集中刷卷和查漏补缺。
+            </p>
+          </div>
+        </div>
+      )}
       <FilterPanel
         selectedType={selectedType}
         selectedDifficulty={selectedDifficulty}
         selectedCategory={selectedCategory}
         searchQuery={searchQuery}
-        availableCategories={categories}
+        availableCategories={availableCategories}
         filteredCount={filteredQuestions.length}
         onTypeChange={setSelectedType}
         onDifficultyChange={setSelectedDifficulty}

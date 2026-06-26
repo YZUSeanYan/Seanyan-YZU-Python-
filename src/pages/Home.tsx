@@ -20,6 +20,7 @@ import { HeroBg } from '@/components/SvgAssets';
 import { useQuestions } from '@/hooks/useQuestions';
 import { useStudyStats } from '@/hooks/useStudyStats';
 import { useWrongBook } from '@/hooks/useWrongBook';
+import { useAuth } from '@/hooks/useAuth';
 import type { QuestionType } from '@/types';
 
 const easeOutExpo = [0.16, 1, 0.3, 1] as [number, number, number, number];
@@ -85,7 +86,7 @@ const typeColorMap: Record<string, string> = {
 };
 
 /* ---------- Hero Section ---------- */
-function HeroSection({ totalQuestions }: { totalQuestions: number }) {
+function HeroSection({ totalQuestions, canUsePractice2 }: { totalQuestions: number; canUsePractice2: boolean }) {
   const navigate = useNavigate();
 
   return (
@@ -143,6 +144,17 @@ function HeroSection({ totalQuestions }: { totalQuestions: number }) {
           >
             仿真考试
           </motion.button>
+
+          {canUsePractice2 && (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('/practice-2')}
+              className="flex items-center gap-2 px-6 py-3 bg-pm-accent text-white rounded-pm-md font-medium text-sm shadow-pm-md transition-colors hover:opacity-90"
+            >
+              三套卷专项练习
+            </motion.button>
+          )}
 
           <motion.button
             whileHover={{ scale: 1.02 }}
@@ -548,7 +560,9 @@ export default function Home() {
   const { loading, questions, typeCounts } = useQuestions();
   const { stats, isEmpty } = useStudyStats();
   const { unmasteredCount } = useWrongBook();
+  const { authState } = useAuth();
   const totalQuestions = questions.length;
+  const canUsePractice2 = authState.user?.role === 'admin' || Boolean(authState.user?.practice2Enabled);
 
   if (loading) {
     return (
@@ -564,7 +578,7 @@ export default function Home() {
 
   return (
     <div className="w-full">
-      <HeroSection totalQuestions={totalQuestions} />
+      <HeroSection totalQuestions={totalQuestions} canUsePractice2={canUsePractice2} />
       <StatsSection
         totalAnswered={stats.totalAnswered}
         correctRate={stats.correctRate}

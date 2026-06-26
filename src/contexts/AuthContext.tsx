@@ -1,4 +1,4 @@
-import { createContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import type { User, AuthState, UserData } from '@/types';
 import { api } from '@/lib/api';
 
@@ -66,6 +66,49 @@ const defaultUserData = (userId: string): UserData => ({
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authState, setAuthState] = useState<AuthState>(getAuthState);
+
+  useEffect(() => {
+    if (!authState.isLoggedIn || !authState.user?.id) return;
+    const currentUser = authState.user;
+    let cancelled = false;
+
+    api.getUsers()
+      .then((result) => {
+        if (cancelled) return;
+        const fresh = ((result as { users?: Partial<User>[] }).users || []).find(
+          (user) => user.id === currentUser.id
+        );
+        if (!fresh) return;
+
+        const updatedUser: User = {
+          ...currentUser,
+          studentId: fresh.studentId || currentUser.studentId,
+          name: fresh.name || currentUser.name,
+          role: fresh.role || currentUser.role,
+          remarkName: fresh.remarkName || '',
+          practice2Enabled: fresh.role === 'admin' || Boolean(fresh.practice2Enabled),
+          createdAt: fresh.createdAt || currentUser.createdAt,
+        };
+
+        const changed =
+          updatedUser.name !== currentUser.name ||
+          updatedUser.remarkName !== currentUser.remarkName ||
+          updatedUser.practice2Enabled !== currentUser.practice2Enabled;
+
+        if (!changed) return;
+        const users = getUsers().filter((item) => item.id !== updatedUser.id);
+        saveUsers([...users, updatedUser]);
+        setAuthState({ user: updatedUser, isLoggedIn: true });
+        localStorage.setItem(AUTH_STATE_KEY, JSON.stringify(updatedUser));
+      })
+      .catch(() => {
+        // Keep the cached login state if the server is temporarily unavailable.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authState.isLoggedIn, authState.user]);
 
   const login = useCallback(async (studentId: string, password: string): Promise<User> => {
     const response = await api.login(studentId, password) as { user: Omit<User, 'password'> };

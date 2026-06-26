@@ -98,6 +98,8 @@ interface LocalUser {
   name: string;
   password: string;
   role: 'student' | 'admin';
+  remarkName?: string;
+  practice2Enabled?: boolean;
   createdAt: string;
 }
 
@@ -126,6 +128,8 @@ const localApi = {
       name,
       password,
       role: studentId === 'admin' ? 'admin' : 'student',
+      remarkName: '',
+      practice2Enabled: studentId === 'admin',
       createdAt: new Date().toISOString(),
     };
     users.push(newUser);
@@ -141,7 +145,14 @@ const localApi = {
     setLocalUserData(allData);
     return {
       success: true,
-      user: { id: newUser.id, studentId: newUser.studentId, name: newUser.name, role: newUser.role },
+      user: {
+        id: newUser.id,
+        studentId: newUser.studentId,
+        name: newUser.name,
+        role: newUser.role,
+        remarkName: newUser.remarkName || '',
+        practice2Enabled: newUser.role === 'admin' || Boolean(newUser.practice2Enabled),
+      },
     };
   },
   login: async (studentId: string, password: string) => {
@@ -154,6 +165,8 @@ const localApi = {
         name: '管理员',
         password: 'admin123',
         role: 'admin',
+        remarkName: '',
+        practice2Enabled: true,
         createdAt: new Date().toISOString(),
       });
       setLocalUsers(users);
@@ -162,13 +175,28 @@ const localApi = {
     if (!user) throw new Error('学号或密码错误');
     return {
       success: true,
-      user: { id: user.id, studentId: user.studentId, name: user.name, role: user.role },
+      user: {
+        id: user.id,
+        studentId: user.studentId,
+        name: user.name,
+        role: user.role,
+        remarkName: user.remarkName || '',
+        practice2Enabled: user.role === 'admin' || Boolean(user.practice2Enabled),
+      },
     };
   },
   getUsers: async () => {
     const users = getLocalUsers()
       .filter((u) => u.role === 'student' || u.role === 'admin')
-      .map((u) => ({ id: u.id, studentId: u.studentId, name: u.name, role: u.role, createdAt: u.createdAt }));
+      .map((u) => ({
+        id: u.id,
+        studentId: u.studentId,
+        name: u.name,
+        role: u.role,
+        remarkName: u.remarkName || '',
+        practice2Enabled: u.role === 'admin' || Boolean(u.practice2Enabled),
+        createdAt: u.createdAt,
+      }));
     return { users };
   },
   getUserData: async (userId: string) => {
@@ -187,11 +215,31 @@ const localApi = {
     setLocalUserData(allData);
     return { success: true };
   },
-  updateUser: async (_userId: string, _data: Record<string, unknown>) => {
-    return { success: false };
+  updateUser: async (userId: string, data: Record<string, unknown>) => {
+    const users = getLocalUsers();
+    const index = users.findIndex((u) => u.id === userId);
+    if (index === -1) throw new Error('用户不存在');
+    users[index] = {
+      ...users[index],
+      name: typeof data.name === 'string' ? data.name : users[index].name,
+      remarkName: typeof data.remarkName === 'string' ? data.remarkName : users[index].remarkName,
+      practice2Enabled:
+        typeof data.practice2Enabled === 'boolean' ? data.practice2Enabled : users[index].practice2Enabled,
+    };
+    if (users[index].role === 'admin') users[index].practice2Enabled = true;
+    setLocalUsers(users);
+    return { success: true };
   },
-  deleteUser: async (_userId: string) => {
-    return { success: false };
+  deleteUser: async (userId: string) => {
+    const users = getLocalUsers();
+    const user = users.find((u) => u.id === userId);
+    if (!user) throw new Error('用户不存在');
+    if (user.role === 'admin') throw new Error('不能删除管理员账号');
+    setLocalUsers(users.filter((u) => u.id !== userId));
+    const allData = getLocalUserData();
+    delete allData[userId];
+    setLocalUserData(allData);
+    return { success: true };
   },
   importQuestionWord: async (_file: File) => {
     throw new Error('离线模式不支持题库导入');

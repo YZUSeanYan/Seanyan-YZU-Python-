@@ -34,6 +34,7 @@ db.exec(`
     password TEXT NOT NULL,
     role TEXT DEFAULT 'student',
     remark_name TEXT DEFAULT '',
+    practice2_enabled INTEGER DEFAULT 0,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -50,15 +51,16 @@ db.exec(`
 `);
 
 try { db.exec("ALTER TABLE users ADD COLUMN remark_name TEXT DEFAULT ''"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN practice2_enabled INTEGER DEFAULT 0"); } catch {}
 try { db.exec("ALTER TABLE user_data ADD COLUMN practice_progress TEXT DEFAULT '{}'"); } catch {}
 
 const stmts = {
-  createUser: db.prepare('INSERT INTO users (id, student_id, name, password, role, remark_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'),
+  createUser: db.prepare('INSERT INTO users (id, student_id, name, password, role, remark_name, practice2_enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
   findUserByStudentId: db.prepare('SELECT * FROM users WHERE student_id = ?'),
   findUserById: db.prepare('SELECT * FROM users WHERE id = ?'),
-  getAllUsers: db.prepare("SELECT id, student_id, name, role, remark_name, created_at FROM users WHERE role IN ('student', 'admin') ORDER BY created_at DESC"),
+  getAllUsers: db.prepare("SELECT id, student_id, name, role, remark_name, practice2_enabled, created_at FROM users WHERE role IN ('student', 'admin') ORDER BY created_at DESC"),
   updateUserPassword: db.prepare('UPDATE users SET password = ? WHERE student_id = ?'),
-  updateUserProfile: db.prepare('UPDATE users SET name = ?, remark_name = ? WHERE id = ?'),
+  updateUserProfile: db.prepare('UPDATE users SET name = ?, remark_name = ?, practice2_enabled = ? WHERE id = ?'),
   deleteUser: db.prepare("DELETE FROM users WHERE id = ? AND role != 'admin'"),
   deleteUserData: db.prepare('DELETE FROM user_data WHERE user_id = ?'),
   getUserData: db.prepare('SELECT * FROM user_data WHERE user_id = ?'),
@@ -78,7 +80,7 @@ const stmts = {
 function ensureAdmin() {
   const admin = stmts.findUserByStudentId.get('admin');
   if (!admin) {
-    stmts.createUser.run('admin-default', 'admin', '管理员', ADMIN_PASSWORD, 'admin', '', new Date().toISOString());
+    stmts.createUser.run('admin-default', 'admin', '管理员', ADMIN_PASSWORD, 'admin', '', 1, new Date().toISOString());
   } else {
     stmts.updateUserPassword.run(ADMIN_PASSWORD, 'admin');
   }
@@ -92,6 +94,7 @@ function userResponse(user) {
     name: user.name,
     role: user.role,
     remarkName: user.remark_name || '',
+    practice2Enabled: user.role === 'admin' || Boolean(user.practice2_enabled),
     createdAt: user.created_at,
   };
 }
@@ -109,7 +112,7 @@ app.post('/api/register', (req, res) => {
     if (stmts.findUserByStudentId.get(studentId)) return res.status(409).json({ error: '该学号已被注册' });
 
     const id = 'user_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    stmts.createUser.run(id, studentId, name, password, 'student', '', new Date().toISOString());
+    stmts.createUser.run(id, studentId, name, password, 'student', '', 0, new Date().toISOString());
     res.json({ success: true, user: userResponse(stmts.findUserByStudentId.get(studentId)) });
   } catch (err) {
     console.error('[Register Error]', err);
@@ -145,7 +148,10 @@ app.patch('/api/users/:id', (req, res) => {
     if (!user) return res.status(404).json({ error: '用户不存在' });
     const name = typeof req.body.name === 'string' && req.body.name.trim() ? req.body.name.trim() : user.name;
     const remarkName = typeof req.body.remarkName === 'string' ? req.body.remarkName.trim() : (user.remark_name || '');
-    stmts.updateUserProfile.run(name, remarkName, req.params.id);
+    const practice2Enabled = typeof req.body.practice2Enabled === 'boolean'
+      ? (req.body.practice2Enabled ? 1 : 0)
+      : (user.practice2_enabled || 0);
+    stmts.updateUserProfile.run(name, remarkName, practice2Enabled, req.params.id);
     res.json({ success: true, user: userResponse(stmts.findUserById.get(req.params.id)) });
   } catch (err) {
     console.error('[Update User Error]', err);

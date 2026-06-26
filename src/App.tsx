@@ -19,6 +19,13 @@ function RequireLogin({ children }: { children: ReactNode }) {
   return authState.isLoggedIn ? children : <Navigate to="/login" replace />;
 }
 
+function RequirePractice2({ children }: { children: ReactNode }) {
+  const { authState } = useAuth();
+  const user = authState.user;
+  const allowed = user?.role === 'admin' || Boolean(user?.practice2Enabled);
+  return allowed ? children : <Navigate to="/" replace />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -33,6 +40,7 @@ export default function App() {
                 <Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/practice" element={<Practice />} />
+                  <Route path="/practice-2" element={<RequirePractice2><Practice mode="exam" /></RequirePractice2>} />
                   <Route path="/wrongbook" element={<WrongBook />} />
                   <Route path="/stats" element={<Stats />} />
                   <Route path="/memory" element={<MemoryMode />} />
