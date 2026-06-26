@@ -68,6 +68,43 @@ function normalizeUserData(data: Partial<UserDataState> | null | undefined): Use
   };
 }
 
+function mergeWrongAnswers(...sources: Array<WrongAnswer[] | null | undefined>): WrongAnswer[] {
+  const byQuestion = new Map<number, WrongAnswer>();
+
+  sources.flatMap((source) => (Array.isArray(source) ? source : [])).forEach((item) => {
+    if (!item || typeof item.questionId !== 'number') return;
+    const existing = byQuestion.get(item.questionId);
+    if (!existing) {
+      byQuestion.set(item.questionId, {
+        ...item,
+        wrongCount: Number(item.wrongCount) || 1,
+        attempts: Number(item.attempts) || 0,
+        lastWrongAt: item.lastWrongAt || new Date().toISOString(),
+        isMastered: Boolean(item.isMastered),
+      });
+      return;
+    }
+
+    const itemTime = new Date(item.lastWrongAt || 0).getTime();
+    const existingTime = new Date(existing.lastWrongAt || 0).getTime();
+    const latest = itemTime >= existingTime ? item : existing;
+
+    byQuestion.set(item.questionId, {
+      ...existing,
+      userAnswer: latest.userAnswer || existing.userAnswer,
+      correctAnswer: latest.correctAnswer || existing.correctAnswer,
+      wrongCount: Math.max(Number(existing.wrongCount) || 1, Number(item.wrongCount) || 1),
+      attempts: Math.max(Number(existing.attempts) || 0, Number(item.attempts) || 0),
+      lastWrongAt: latest.lastWrongAt || existing.lastWrongAt || new Date().toISOString(),
+      isMastered: Boolean(existing.isMastered && item.isMastered),
+    });
+  });
+
+  return Array.from(byQuestion.values()).sort(
+    (a, b) => new Date(b.lastWrongAt).getTime() - new Date(a.lastWrongAt).getTime()
+  );
+}
+
 // ===== Keys for localStorage (cache) =====
 const LS_DATA_KEY = 'seanyan_user_data_cache';
 
@@ -178,9 +215,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         setDataState((prev) => {
           const current = normalizeUserData(prev);
           const merged = normalizeUserData({
-            wrongAnswers: parsed.wrongAnswers && (parsed.wrongAnswers as WrongAnswer[]).length > 0
-              ? parsed.wrongAnswers as WrongAnswer[]
-              : current.wrongAnswers,
+            wrongAnswers: mergeWrongAnswers(current.wrongAnswers, parsed.wrongAnswers as WrongAnswer[] | undefined),
             studyStats: parsed.studyStats && (parsed.studyStats as StudyStats).totalAnswered > 0
               ? parsed.studyStats as StudyStats
               : current.studyStats,
