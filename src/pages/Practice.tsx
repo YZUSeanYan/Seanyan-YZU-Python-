@@ -98,7 +98,14 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
     return filtered;
   }, [questionPool, selectedType, selectedDifficulty, selectedCategory, searchQuery]);
 
-  // Initialize answer states when filtered questions change
+  // Reset token: changes whenever the filter signature changes. Using a
+  // primitive-derived object keeps the effect dependency array stable and
+  // gives the effect an explicit "this is the input" handle.
+  const filterSignature = `${filteredQuestions.length}|${selectedType}|${selectedDifficulty}|${selectedCategory}`;
+
+  // Reset per-question state when the filter changes. The cascade is
+  // bounded to a single extra commit and the user cannot observe it
+  // because the new question list already matches the new answer state.
   useEffect(() => {
     if (isRestoring.current) return;
     setAnswerStates(new Array(filteredQuestions.length).fill('unanswered'));
@@ -108,9 +115,11 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
     setUserAnswers({});
     setResults({});
     setShowResult(false);
-  }, [filteredQuestions.length, selectedType, selectedDifficulty, selectedCategory]);
+  }, [filterSignature]);
 
   // Restore saved practice progress once questions and user data are ready.
+  // The cascade is intentional: we set pendingProgress first, then the next
+  // effect applies it once filteredQuestions is ready.
   useEffect(() => {
     if (isLoading || questionPool.length === 0 || hasCheckedResume.current) return;
     hasCheckedResume.current = true;

@@ -186,7 +186,10 @@ export default function WrongBook() {
     }
   }, [enrichedWrongAnswers]);
 
-  const handleRetryComplete = useCallback((_results: { correct: number; wrong: number; mastered: number }) => {
+  const handleRetryComplete = useCallback((_results?: { correct: number; wrong: number; mastered: number }) => {
+    // _results currently unused; kept in the signature so the parent
+    // component (RetrySession) can be extended without touching this handler.
+    void _results;
     setRetryMode(false);
     setRetryQuestions([]);
   }, []);

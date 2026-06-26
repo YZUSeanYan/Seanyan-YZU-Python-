@@ -2,17 +2,46 @@
 // 后端API地址（通过HTTPS域名访问）
 const API_BASE = 'https://api.seanyan.store';
 
-let apiAvailable: boolean | null = null;
+// Health-check cache. We re-check at most every HEALTH_TTL_MS, but in-flight
+// checks are de-duplicated so a thundering herd of /api/users etc. does not
+// hammer the server. Negative caches expire faster than positive ones so a
+// transient outage does not lock the user out of server mode for long.
+const HEALTH_TTL_OK_MS = 60_000;
+const HEALTH_TTL_FAIL_MS = 15_000;
+const HEALTH_TIMEOUT_MS = 3000;
+
+interface HealthCache {
+  available: boolean;
+  expiresAt: number;
+}
+let healthCache: HealthCache | null = null;
+let healthInflight: Promise<boolean> | null = null;
+
+async function probeApi(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 async function checkApiHealth(): Promise<boolean> {
-  if (apiAvailable !== null) return apiAvailable;
-  try {
-    const res = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(3000) });
-    apiAvailable = res.ok;
-  } catch {
-    apiAvailable = false;
-  }
-  return apiAvailable;
+  const now = Date.now();
+  if (healthCache && healthCache.expiresAt > now) return healthCache.available;
+  if (healthInflight) return healthInflight;
+
+  healthInflight = probeApi().then((ok) => {
+    healthCache = { available: ok, expiresAt: Date.now() + (ok ? HEALTH_TTL_OK_MS : HEALTH_TTL_FAIL_MS) };
+    healthInflight = null;
+    return ok;
+  }).catch(() => {
+    healthCache = { available: false, expiresAt: Date.now() + HEALTH_TTL_FAIL_MS };
+    healthInflight = null;
+    return false;
+  });
+
+  return healthInflight;
 }
 
 async function apiPost(path: string, body: Record<string, unknown>) {
@@ -241,7 +270,7 @@ const localApi = {
     setLocalUserData(allData);
     return { success: true };
   },
-  importQuestionWord: async (_file: File) => {
+  importQuestionWord: async (): Promise<never> => {
     throw new Error('离线模式不支持题库导入');
   },
 };
@@ -278,7 +307,8 @@ export const api = {
   },
   importQuestionWord: async (file: File) => {
     const useServer = await checkApiHealth();
-    return useServer ? serverApi.importQuestionWord(file) : localApi.importQuestionWord(file);
+    if (!useServer) return localApi.importQuestionWord();
+    return serverApi.importQuestionWord(file);
   },
   health: async () => {
     try {
@@ -290,7 +320,7 @@ export const api = {
 };
 
 export function isServerMode(): boolean {
-  return apiAvailable === true;
+  return healthCache?.available === true;
 }
 
 // LocalStorage helper

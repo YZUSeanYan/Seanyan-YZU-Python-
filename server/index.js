@@ -322,7 +322,21 @@ app.post('/api/questions/import-word', upload.single('file'), async (req, res) =
     const nextQuestions = [...questions, ...imported];
     const categories = [...new Set(nextQuestions.map((q) => q.category).filter(Boolean))];
     const nextBank = { total: nextQuestions.length, categories, questions: nextQuestions };
-    fs.writeFileSync(filePath, JSON.stringify(nextBank, null, 2), 'utf-8');
+    const serialized = JSON.stringify(nextBank, null, 2);
+
+    // Write to whichever path the server resolves (dist preferred in prod).
+    fs.writeFileSync(filePath, serialized, 'utf-8');
+
+    // Also write to the other location so a subsequent `npm run build` does
+    // not silently erase the imported bank, and so dev (no dist) sees the
+    // change without a manual copy.
+    const publicPath = path.join(__dirname, '..', 'public', 'questions.json');
+    const distPath = path.join(__dirname, '..', 'dist', 'questions.json');
+    if (filePath === publicPath && fs.existsSync(path.dirname(distPath))) {
+      try { fs.writeFileSync(distPath, serialized, 'utf-8'); } catch (e) { console.warn('[Import] dist write skipped:', e.message); }
+    } else if (filePath === distPath) {
+      try { fs.writeFileSync(publicPath, serialized, 'utf-8'); } catch (e) { console.warn('[Import] public write skipped:', e.message); }
+    }
 
     res.json({ success: true, imported: imported.length, duplicates: duplicates.length, total: nextQuestions.length, duplicateSamples: duplicates.slice(0, 10) });
   } catch (err) {

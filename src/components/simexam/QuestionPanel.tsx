@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { Circle } from 'lucide-react';
+import CodeBlock from '@/components/practice/CodeBlock';
 import type { Question } from '@/types';
 
 interface QuestionPanelProps {
@@ -38,10 +39,14 @@ export default function QuestionPanel({ question, globalNumber, answer, onAnswer
 
       {/* Question Content */}
       <div className="mb-6">
-        <p className="text-[15px] text-pm-text-primary leading-[1.8] mb-4 whitespace-pre-wrap">
-          {question.content}
-        </p>
-        {question.code && (
+        {(question.type === 'codeFill' || question.type === 'codeFix') && question.content ? (
+          <CodeBlock code={question.content} className="mb-4" />
+        ) : (
+          <p className="text-[15px] text-pm-text-primary leading-[1.8] mb-4 whitespace-pre-wrap">
+            {question.content}
+          </p>
+        )}
+        {question.code && question.type !== 'codeFill' && question.type !== 'codeFix' && (
           <pre className="bg-[#1E293B] text-[#E2E8F0] rounded-md p-4 font-mono text-[14px] leading-[1.8] overflow-x-auto mb-4">
             <code>{question.code}</code>
           </pre>
@@ -49,7 +54,7 @@ export default function QuestionPanel({ question, globalNumber, answer, onAnswer
       </div>
 
       {/* Answer Area - Single Choice */}
-      {question.type === 'single' && question.options && (
+      {question.type === 'single' && question.options && question.options.length > 0 && (
         <div className="space-y-2.5">
           {question.options.map((opt, i) => {
             const letter = optionLetters[i];
@@ -81,6 +86,22 @@ export default function QuestionPanel({ question, globalNumber, answer, onAnswer
               </motion.button>
             );
           })}
+        </div>
+      )}
+
+      {/* Fallback for misclassified single-choice (no options) → treat as codeFix */}
+      {question.type === 'single' && (!question.options || question.options.length === 0) && (
+        <div className="mt-4 space-y-3">
+          <p className="text-[13px] text-[#CC0000] font-medium">
+            【注意】改错时，请将整个语句修改后填写在后面的横线上，语句书写不完整，将不能得分。
+          </p>
+          <textarea
+            value={answer}
+            onChange={(e) => onAnswer(question.id, e.target.value)}
+            placeholder="请输入修改后的完整代码..."
+            rows={6}
+            className="w-full px-4 py-3 border-2 border-[#D4D4D4] rounded-md bg-[#F5F7FA] text-[14px] text-pm-text-primary font-mono placeholder:text-pm-text-muted focus:outline-none focus:border-[#0F4C81] transition-colors resize-y leading-relaxed"
+          />
         </div>
       )}
 

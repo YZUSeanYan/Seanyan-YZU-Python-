@@ -104,18 +104,22 @@ export default function QuestionCard({
 
       {/* Question content */}
       <div className="mb-6">
-        <p className="text-base font-body leading-relaxed text-pm-text-primary mb-4">
-          {question.content}
-        </p>
+        {(question.type === 'codeFill' || question.type === 'codeFix') && question.content ? (
+          <CodeBlock code={question.content} className="mb-4" />
+        ) : (
+          <p className="text-base font-body leading-relaxed text-pm-text-primary mb-4 whitespace-pre-wrap">
+            {question.content}
+          </p>
+        )}
 
-        {question.code && (
+        {question.code && question.type !== 'codeFill' && question.type !== 'codeFix' && (
           <CodeBlock code={question.code} className="mb-4" />
         )}
       </div>
 
       {/* Answer area by type */}
       <div className="mb-6">
-        {question.type === 'single' && (
+        {question.type === 'single' && question.options && question.options.length > 0 && (
           <AnswerOptions
             question={question}
             selectedAnswer={selectedAnswer}
@@ -123,6 +127,22 @@ export default function QuestionCard({
             correctAnswer={question.answer}
             onSelect={onSelectAnswer}
           />
+        )}
+
+        {question.type === 'single' && (!question.options || question.options.length === 0) && (
+          <div className="space-y-3">
+            <p className="text-sm text-pm-text-secondary mb-2">
+              请输入程序改错后的完整代码：
+            </p>
+            <textarea
+              value={selectedAnswer || ''}
+              onChange={(e) => onSelectAnswer(e.target.value)}
+              disabled={submitted}
+              placeholder="请描述错误所在行及正确代码..."
+              rows={6}
+              className="w-full px-4 py-3 rounded-pm-md bg-pm-bg-primary border border-pm-border-color text-pm-text-primary placeholder:text-pm-text-muted focus:outline-none focus:border-pm-border-focus focus:ring-[3px] focus:ring-[rgba(15,76,129,0.1)] disabled:opacity-60 resize-vertical font-mono text-sm"
+            />
+          </div>
         )}
 
         {question.type === 'fill' && (

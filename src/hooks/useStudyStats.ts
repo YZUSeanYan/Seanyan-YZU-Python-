@@ -5,7 +5,10 @@ import { useUserData } from '@/contexts/UserDataContext';
 export function useStudyStats() {
   const { data, updateStudyStats } = useUserData();
   const stats = data.studyStats;
-  const dailyActivity = Array.isArray(stats.dailyActivity) ? stats.dailyActivity : [];
+  const dailyActivity = useMemo(
+    () => (Array.isArray(stats.dailyActivity) ? stats.dailyActivity : []),
+    [stats.dailyActivity]
+  );
   const answers = useMemo(() => {
     // Extract answers from dailyActivity as UserAnswer array
     const result: UserAnswer[] = [];

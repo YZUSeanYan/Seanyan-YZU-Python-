@@ -259,13 +259,16 @@ export default function SimExam() {
     }
   }, [sections, answers, totalQuestions, selectedPaper, recordAnswer, addWrongAnswer, getCurrentUser, getUserData, saveUserData, timeRemaining]);
 
-  // Auto-submit on time up
+  // Auto-submit on time up. We intentionally depend only on isTimeUp +
+  // phase; handleSubmit's identity changes too often (answers/timeRemaining
+  // update) and would re-arm the 2s setTimeout on every render.
   useEffect(() => {
     if (isTimeUp && phase === 'in-progress') {
       const timer = setTimeout(() => handleSubmit(), 2000);
       return () => clearTimeout(timer);
     }
-  }, [isTimeUp, phase, handleSubmit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTimeUp, phase]);
 
   const formatTime = useCallback((seconds: number) => {
     const m = Math.floor(seconds / 60);

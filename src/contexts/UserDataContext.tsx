@@ -101,6 +101,38 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
 
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ===== Sync to server =====
+  // The server schema has a dedicated `practice_progress` column. We mirror
+  // the same data as `memory_status` into that column so the gated
+  // exam-paper practice mode (which uses memoryStatus[-2] via usePracticeProgress)
+  // survives page reloads and device switches. Old rows that don't have the
+  // column yet are auto-migrated by the server's ALTER TABLE on first read.
+  const syncToServer = useCallback((newData: UserDataState) => {
+    if (!userId) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+
+    syncTimer.current = setTimeout(() => {
+      api.saveUserData(userId, {
+        wrong_answers: newData.wrongAnswers,
+        study_stats: newData.studyStats,
+        memory_status: newData.memoryStatus,
+        exam_history: newData.examHistory,
+        practice_progress: newData.memoryStatus,
+      }).then(() => {
+        setIsSynced(true);
+      }).catch(() => {
+        setIsSynced(false);
+      });
+    }, 800);
+  }, [userId]);
+
+  // Stable ref to the latest syncToServer so the data-loading effect below
+  // (which is declared above this point) can call it without TDZ.
+  const syncToServerRef = useRef<(newData: UserDataState) => void>(syncToServer);
+  useEffect(() => {
+    syncToServerRef.current = syncToServer;
+  }, [syncToServer]);
+
   // ===== Load from server on login =====
   useEffect(() => {
     if (!userId) {
@@ -128,8 +160,14 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         try {
           if (serverData.exam_history) parsed.examHistory = JSON.parse(serverData.exam_history as string);
         } catch { /* ignore */ }
+        // Backward-compat: older rows may only have practice_progress populated.
+        // Treat it as memoryStatus if memory_status is empty.
+        try {
+          if (!serverData.memory_status && serverData.practice_progress) {
+            parsed.memoryStatus = JSON.parse(serverData.practice_progress as string);
+          }
+        } catch { /* ignore */ }
 
-        // Check if server has meaningful data
         const hasServerData = (
           (parsed.wrongAnswers && (parsed.wrongAnswers as WrongAnswer[]).length > 0) ||
           (parsed.studyStats && (parsed.studyStats as StudyStats).totalAnswered > 0) ||
@@ -137,7 +175,6 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
           (parsed.examHistory && (parsed.examHistory as unknown[]).length > 0)
         );
 
-        // Merge: server data takes priority, but keep local data if server has none
         setDataState((prev) => {
           const current = normalizeUserData(prev);
           const merged = normalizeUserData({
@@ -156,7 +193,6 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
           });
           saveToCache(merged);
 
-          // If server has no data but local cache has meaningful data, sync to server
           if (!hasServerData) {
             const localHasData = (
               current.wrongAnswers.length > 0 ||
@@ -167,7 +203,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
             if (localHasData) {
               setTimeout(() => {
                 if (!cancelled) {
-                  syncToServer(merged);
+                  syncToServerRef.current(merged);
                 }
               }, 100);
             }
@@ -178,7 +214,6 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         setIsSynced(true);
       })
       .catch(() => {
-        // Server unavailable, use local cache
         if (!cancelled) setIsSynced(false);
       })
       .finally(() => {
@@ -186,25 +221,6 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
       });
 
     return () => { cancelled = true; };
-  }, [userId]);
-
-  // ===== Sync to server =====
-  const syncToServer = useCallback((newData: UserDataState) => {
-    if (!userId) return;
-    if (syncTimer.current) clearTimeout(syncTimer.current);
-
-    syncTimer.current = setTimeout(() => {
-      api.saveUserData(userId, {
-        wrong_answers: newData.wrongAnswers,
-        study_stats: newData.studyStats,
-        memory_status: newData.memoryStatus,
-        exam_history: newData.examHistory,
-      }).then(() => {
-        setIsSynced(true);
-      }).catch(() => {
-        setIsSynced(false);
-      });
-    }, 800);
   }, [userId]);
 
   // ===== Update helpers =====

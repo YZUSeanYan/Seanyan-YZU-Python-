@@ -349,13 +349,19 @@ function RecentActivitySection({
 }: {
   isEmpty: boolean;
 }) {
-  // Generate last 7 days activity
+  // Generate last 7 days activity (placeholder heatmap; uses a stable
+  // pseudo-random count derived from the date so the chart does not flicker
+  // on every render and stays deterministic for the same day).
   const weekDays = useMemo(() => {
     const days: { date: string; count: number }[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      days.push({ date: d.toISOString().split('T')[0], count: Math.floor(Math.random() * 8) });
+      const dateStr = d.toISOString().split('T')[0];
+      // Cheap deterministic hash → 0..7
+      let h = 0;
+      for (let k = 0; k < dateStr.length; k++) h = (h * 31 + dateStr.charCodeAt(k)) >>> 0;
+      days.push({ date: dateStr, count: h % 8 });
     }
     return days;
   }, []);
