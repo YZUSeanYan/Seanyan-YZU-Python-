@@ -40,7 +40,7 @@ export default function Settings() {
       className="min-h-[70dvh]"
     >
       <div className="bg-pm-bg-card border-b border-pm-border-color">
-        <div className="max-w-[1200px] mx-auto px-6 py-8">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <div className="flex items-center gap-2 text-xs text-pm-text-muted mb-3">
             <span>首页</span>
             <span>&gt;</span>
@@ -51,7 +51,7 @@ export default function Settings() {
               <SettingsIcon className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="font-heading text-[32px] font-bold text-pm-text-primary">设置</h1>
+              <h1 className="font-heading text-[28px] sm:text-[32px] font-bold text-pm-text-primary">设置</h1>
               <p className="text-sm text-pm-text-secondary mt-1">
                 管理学习体验，查看网站信息和更新记录。
               </p>
@@ -60,10 +60,10 @@ export default function Settings() {
         </div>
       </div>
 
-      <div className="max-w-[1200px] mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6 sm:py-8 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4 sm:gap-6">
         <div className="space-y-6">
-          <section className="bg-white rounded-pm-lg border border-pm-border p-5">
-            <div className="flex items-start justify-between gap-4">
+          <section className="bg-white rounded-pm-lg border border-pm-border p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-3 sm:gap-4">
               <div className="flex gap-3">
                 <div className="w-10 h-10 rounded-pm-md bg-pm-accent-light text-pm-accent flex items-center justify-center">
                   {soundOn ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
@@ -107,7 +107,7 @@ export default function Settings() {
             </div>
           </section>
 
-          <section className="bg-white rounded-pm-lg border border-pm-border p-5">
+          <section className="bg-white rounded-pm-lg border border-pm-border p-4 sm:p-5">
             <div className="flex items-center gap-2 mb-4">
               <Info className="w-5 h-5 text-pm-primary" />
               <h2 className="font-semibold text-pm-text-primary">关于 SeanYan</h2>
@@ -141,7 +141,7 @@ export default function Settings() {
             </div>
           </section>
 
-          <section className="bg-white rounded-pm-lg border border-pm-border p-5">
+          <section className="bg-white rounded-pm-lg border border-pm-border p-4 sm:p-5">
             <div className="flex items-center gap-2 mb-4">
               <HeartHandshake className="w-5 h-5 text-pm-orange" />
               <h2 className="font-semibold text-pm-text-primary">捐助支持</h2>
@@ -171,7 +171,7 @@ export default function Settings() {
           </section>
         </div>
 
-        <aside className="bg-white rounded-pm-lg border border-pm-border p-5 h-fit">
+        <aside className="bg-white rounded-pm-lg border border-pm-border p-4 sm:p-5 h-fit">
           <h2 className="font-semibold text-pm-text-primary mb-4">更新记录</h2>
           <ol className="space-y-4">
             {releaseNotes.map((note) => (

@@ -61,10 +61,10 @@ export default function QuestionCard({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -40 }}
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-      className="bg-pm-bg-card rounded-pm-lg shadow-pm-md p-6"
+      className="bg-pm-bg-card rounded-pm-lg shadow-pm-md p-4 sm:p-6"
     >
       {/* Top bar */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-start justify-between gap-3 mb-4 sm:mb-5">
         <div className="flex items-center gap-2 flex-wrap">
           <span
             className="px-2.5 py-1 rounded-pm-sm text-xs font-semibold"
@@ -158,7 +158,7 @@ export default function QuestionCard({
         {question.type === 'codeFill' && (
           <div className="space-y-4">
             {question.blanks?.map((blank) => (
-              <div key={blank.id} className="flex items-center gap-3">
+              <div key={blank.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                 <span className="text-sm text-pm-text-secondary shrink-0">填空 {blank.id}:</span>
                 <input
                   type="text"
@@ -206,23 +206,23 @@ export default function QuestionCard({
 
       {/* Action buttons */}
       {!submitted && (
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-wrap">
           <button
             onClick={onSubmit}
             disabled={!selectedAnswer}
-            className="px-6 py-2.5 rounded-pm-md bg-pm-primary text-white text-sm font-medium hover:bg-pm-primary-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-pm-primary"
+            className="w-full sm:w-auto px-6 py-2.5 rounded-pm-md bg-pm-primary text-white text-sm font-medium hover:bg-pm-primary-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-pm-primary"
           >
             提交答案
           </button>
           <button
             onClick={onSkip}
-            className="px-5 py-2.5 rounded-pm-md border border-pm-border-color text-pm-text-secondary text-sm font-medium hover:bg-pm-bg-primary transition-colors"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-pm-md border border-pm-border-color text-pm-text-secondary text-sm font-medium hover:bg-pm-bg-primary transition-colors"
           >
             跳过此题
           </button>
           <button
             onClick={() => setShowHint(!showHint)}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-pm-md text-pm-orange text-sm font-medium hover:bg-pm-orange-light transition-colors"
+            className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-pm-md text-pm-orange text-sm font-medium hover:bg-pm-orange-light transition-colors"
           >
             <Lightbulb className="w-4 h-4" />
             查看提示

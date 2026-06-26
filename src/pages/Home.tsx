@@ -130,7 +130,7 @@ function HeroSection({ totalQuestions, canUsePractice2 }: { totalQuestions: numb
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => navigate('/practice')}
-            className="flex items-center gap-2 px-6 py-3 bg-pm-primary text-white rounded-pm-md font-medium text-sm shadow-pm-primary transition-colors hover:bg-pm-primary-hover"
+            className="w-full sm:w-auto justify-center flex items-center gap-2 px-4 sm:px-6 py-3 bg-pm-primary text-white rounded-pm-md font-medium text-sm shadow-pm-primary transition-colors hover:bg-pm-primary-hover"
           >
             继续练习
             <ArrowRight className="w-4 h-4" />
@@ -140,7 +140,7 @@ function HeroSection({ totalQuestions, canUsePractice2 }: { totalQuestions: numb
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => navigate('/sim-exam')}
-            className="flex items-center gap-2 px-6 py-3 bg-pm-bg-card text-pm-primary border border-pm-primary rounded-pm-md font-medium text-sm transition-colors hover:bg-pm-primary-light"
+            className="w-full sm:w-auto justify-center flex items-center gap-2 px-4 sm:px-6 py-3 bg-pm-bg-card text-pm-primary border border-pm-primary rounded-pm-md font-medium text-sm transition-colors hover:bg-pm-primary-light"
           >
             仿真考试
           </motion.button>
@@ -150,7 +150,7 @@ function HeroSection({ totalQuestions, canUsePractice2 }: { totalQuestions: numb
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => navigate('/practice-2')}
-              className="flex items-center gap-2 px-6 py-3 bg-pm-accent text-white rounded-pm-md font-medium text-sm shadow-pm-md transition-colors hover:opacity-90"
+              className="w-full sm:w-auto justify-center flex items-center gap-2 px-4 sm:px-6 py-3 bg-pm-accent text-white rounded-pm-md font-medium text-sm shadow-pm-md transition-colors hover:opacity-90"
             >
               三套卷专项练习
             </motion.button>
@@ -160,7 +160,7 @@ function HeroSection({ totalQuestions, canUsePractice2 }: { totalQuestions: numb
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => navigate('/wrongbook')}
-            className="flex items-center gap-2 px-6 py-3 text-pm-error font-medium text-sm transition-colors hover:bg-pm-error-light rounded-pm-md"
+            className="w-full sm:w-auto justify-center flex items-center gap-2 px-4 sm:px-6 py-3 text-pm-error font-medium text-sm transition-colors hover:bg-pm-error-light rounded-pm-md"
           >
             <BookOpen className="w-4 h-4" />
             错题重刷
@@ -215,8 +215,8 @@ function StatsSection({
   ];
 
   return (
-    <section className="max-w-[1200px] mx-auto px-6" style={{ padding: '48px 24px' }}>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+    <section className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
         {cards.map((card, i) => (
           <motion.div
             key={card.label}
@@ -225,7 +225,7 @@ function StatsSection({
             viewport={{ once: true, amount: 0.3 }}
             transition={{ duration: 0.5, ease: easeOutExpo, delay: i * 0.1 }}
             whileHover={{ y: -4, boxShadow: 'var(--pm-shadow-lg)' }}
-            className="bg-pm-bg-card rounded-pm-lg shadow-pm-md p-6 transition-shadow"
+            className="bg-pm-bg-card rounded-pm-lg shadow-pm-md p-4 sm:p-6 transition-shadow"
           >
             <div className="flex items-center gap-2 mb-3">
               <card.icon className="w-5 h-5" style={{ color: card.color }} />
@@ -263,7 +263,7 @@ function QuickStartSection({ typeCounts }: { typeCounts: Record<string, number> 
   );
 
   return (
-    <section className="max-w-[1200px] mx-auto px-6" style={{ padding: '48px 24px' }}>
+    <section className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8 sm:py-12">
       <motion.h2
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -284,7 +284,7 @@ function QuickStartSection({ typeCounts }: { typeCounts: Record<string, number> 
         根据你的需要选择题型开始练习
       </motion.p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         {typeCardData.map((card, i) => (
           <motion.div
             key={card.type}
@@ -304,7 +304,7 @@ function QuickStartSection({ typeCounts }: { typeCounts: Record<string, number> 
               style={{ backgroundColor: card.color }}
             />
 
-            <div className="p-6 pl-7 flex flex-col h-full">
+            <div className="p-5 sm:p-6 sm:pl-7 flex flex-col h-full">
               <div className="flex items-start justify-between mb-4">
                 <div
                   className="w-12 h-12 rounded-full flex items-center justify-center"
@@ -376,7 +376,7 @@ function RecentActivitySection({
   ];
 
   return (
-    <section className="max-w-[1200px] mx-auto px-6" style={{ padding: '48px 24px' }}>
+    <section className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8 sm:py-12">
       <motion.h2
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -388,7 +388,7 @@ function RecentActivitySection({
         最近练习
       </motion.h2>
 
-      <div className="flex flex-col lg:flex-row gap-8">
+      <div className="flex flex-col lg:flex-row gap-5 sm:gap-8">
         {/* Activity List */}
         <div className="flex-1">
           {isEmpty ? (
@@ -504,7 +504,7 @@ function DailyChallengeSection() {
   const timeLeft = '08:32:15';
 
   return (
-    <section className="max-w-[1200px] mx-auto px-6" style={{ padding: '48px 24px 80px' }}>
+    <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-8 sm:pt-12 pb-16 sm:pb-20">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         whileInView={{ opacity: 1, scale: 1 }}
@@ -515,7 +515,7 @@ function DailyChallengeSection() {
           background: 'linear-gradient(135deg, #0F4C81 0%, #2A9D8F 100%)',
         }}
       >
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between p-8 gap-6">
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between p-5 sm:p-8 gap-5 sm:gap-6">
           {/* Left */}
           <div className="flex-1">
             <span

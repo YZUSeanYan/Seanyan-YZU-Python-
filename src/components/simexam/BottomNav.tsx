@@ -48,10 +48,10 @@ export default function BottomNav({ onPrev, onNext, onPicker, onSubmit, hasPrev,
         {onPicker && (
           <button
             onClick={onPicker}
-            className="hidden sm:flex items-center gap-1 px-4 py-1.5 rounded-md text-[13px] font-medium bg-white text-pm-text-primary border border-[#D4D4D4] hover:bg-[#E8E8E8] transition-all touch-friendly"
+            className="flex items-center gap-1 px-2 sm:px-4 py-1.5 rounded-md text-xs sm:text-[13px] font-medium bg-white text-pm-text-primary border border-[#D4D4D4] hover:bg-[#E8E8E8] transition-all touch-friendly"
           >
             <Grid3X3 className="w-4 h-4" />
-            选题
+            <span className="hidden sm:inline">选题</span>
           </button>
         )}
       </div>

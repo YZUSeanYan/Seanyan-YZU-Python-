@@ -490,12 +490,12 @@ export default function Admin() {
         </div>
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-4 py-6">
-        <div className="flex flex-col lg:flex-row gap-6">
+      <div className="max-w-[1400px] mx-auto px-3 sm:px-4 py-4 sm:py-6">
+        <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
           {/* Sidebar */}
           <div className="w-full lg:w-56 shrink-0">
             <div className="bg-white rounded-pm-lg border border-pm-border overflow-hidden">
-              <nav className="p-2 space-y-1">
+              <nav className="p-2 flex lg:block gap-1 overflow-x-auto scrollbar-hide lg:space-y-1">
                 {navItems.map((item) => (
                   <button
                     key={item.key}
@@ -503,7 +503,7 @@ export default function Admin() {
                       setActiveTab(item.key);
                       if (item.key !== 'users') setSelectedUser(null);
                     }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-pm-md text-sm font-medium transition-colors ${
+                    className={`shrink-0 lg:w-full flex items-center gap-2.5 px-3 py-2.5 rounded-pm-md text-sm font-medium transition-colors ${
                       activeTab === item.key
                         ? 'bg-pm-primary text-white'
                         : 'text-pm-text-secondary hover:bg-pm-bg-primary hover:text-pm-text-primary'
@@ -521,7 +521,7 @@ export default function Admin() {
           <div className="flex-1 min-w-0">
             {/* Search bar */}
             <div className="mb-4">
-              <div className="relative max-w-md">
+              <div className="relative max-w-full sm:max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pm-text-muted" />
                 <input
                   type="text"

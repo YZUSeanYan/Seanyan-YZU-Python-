@@ -26,7 +26,7 @@ export default function QuestionPanel({ question, globalNumber, answer, onAnswer
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -30 }}
       transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-      className="max-w-[800px] mx-auto"
+      className="max-w-[800px] mx-auto w-full"
     >
       {/* Question Header */}
       <div className="mb-4">
@@ -38,7 +38,7 @@ export default function QuestionPanel({ question, globalNumber, answer, onAnswer
       </div>
 
       {/* Question Content */}
-      <div className="mb-6">
+      <div className="mb-5 sm:mb-6">
         <QuestionContent
           content={question.content}
           code={question.code}
@@ -58,7 +58,7 @@ export default function QuestionPanel({ question, globalNumber, answer, onAnswer
                 key={i}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => onAnswer(question.id, letter)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-md border text-left transition-all duration-200 ${
+                className={`w-full flex items-start sm:items-center gap-3 px-3 sm:px-4 py-3 rounded-md border text-left transition-all duration-200 ${
                   isSelected
                     ? 'border-[#0F4C81] bg-[#E8F1F8]'
                     : 'border-[#D4D4D4] bg-white hover:border-[#0F4C81]/50 hover:bg-[#F5F7FA]'
@@ -122,7 +122,7 @@ export default function QuestionPanel({ question, globalNumber, answer, onAnswer
             /* Code-fix with specific blank positions */
             <div className="space-y-3">
               {question.blanks.map((blank) => (
-                <div key={blank.id} className="flex items-start gap-3">
+                <div key={blank.id} className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
                   <span className="text-[13px] text-pm-text-secondary shrink-0 mt-2.5">
                     第{blank.id}处错误：
                   </span>
@@ -165,7 +165,7 @@ export default function QuestionPanel({ question, globalNumber, answer, onAnswer
           {question.blanks && question.blanks.length > 0 ? (
             <div className="space-y-3">
               {question.blanks.map((blank) => (
-                <div key={blank.id} className="flex items-start gap-3">
+                <div key={blank.id} className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
                   <span className="text-[13px] text-pm-text-secondary shrink-0 mt-2.5">
                     空{blank.id}：
                   </span>

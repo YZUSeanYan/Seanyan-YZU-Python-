@@ -42,9 +42,9 @@ export default function FilterPanel({
       transition={{ duration: 0.3, delay: 0.15, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
       className="bg-pm-bg-card border-b border-pm-border-color"
     >
-      <div className="max-w-[1200px] mx-auto px-6 py-5">
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-4 sm:py-5">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-xs text-pm-text-muted mb-3">
+        <div className="hidden sm:flex items-center gap-2 text-xs text-pm-text-muted mb-3">
           <span>首页</span>
           <span>&gt;</span>
           <span className="text-pm-primary font-medium">练习模式</span>
@@ -63,7 +63,7 @@ export default function FilterPanel({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-          className="font-heading text-[36px] font-bold text-pm-text-primary mb-1"
+          className="font-heading text-[26px] sm:text-[32px] lg:text-[36px] font-bold text-pm-text-primary mb-1"
         >
           {selectedType === 'all' ? '全部题目' : typeTabs.find((t) => t.key === selectedType)?.label}
         </motion.h1>
@@ -72,9 +72,9 @@ export default function FilterPanel({
         </p>
 
         {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Type tabs - horizontal scroll on mobile */}
-          <div className="flex items-center gap-1 bg-pm-bg-primary rounded-pm-md p-1 overflow-x-auto max-w-full scrollbar-hide">
+          <div className="w-full sm:w-auto flex items-center gap-1 bg-pm-bg-primary rounded-pm-md p-1 overflow-x-auto max-w-full scrollbar-hide">
             {typeTabs.map((tab) => (
               <button
                 key={tab.key}
@@ -99,12 +99,12 @@ export default function FilterPanel({
           </div>
 
           {/* Difficulty select */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 w-full sm:w-auto">
             <SlidersHorizontal className="w-4 h-4 text-pm-text-muted" />
             <select
               value={selectedDifficulty}
               onChange={(e) => onDifficultyChange(e.target.value as Difficulty | 'all')}
-              className="px-3 py-1.5 rounded-pm-md bg-pm-bg-primary border border-pm-border-color text-sm text-pm-text-primary focus:outline-none focus:border-pm-border-focus cursor-pointer"
+              className="w-full sm:w-auto px-3 py-1.5 rounded-pm-md bg-pm-bg-primary border border-pm-border-color text-sm text-pm-text-primary focus:outline-none focus:border-pm-border-focus cursor-pointer"
             >
               <option value="all">全部难度</option>
               <option value="easy">易</option>
@@ -117,7 +117,7 @@ export default function FilterPanel({
           <select
             value={selectedCategory}
             onChange={(e) => onCategoryChange(e.target.value)}
-            className="px-3 py-1.5 rounded-pm-md bg-pm-bg-primary border border-pm-border-color text-sm text-pm-text-primary focus:outline-none focus:border-pm-border-focus cursor-pointer"
+            className="w-full sm:w-auto px-3 py-1.5 rounded-pm-md bg-pm-bg-primary border border-pm-border-color text-sm text-pm-text-primary focus:outline-none focus:border-pm-border-focus cursor-pointer"
           >
             <option value="all">全部知识点</option>
             {availableCategories.map((cat) => (
@@ -128,7 +128,7 @@ export default function FilterPanel({
           </select>
 
           {/* Search input */}
-          <div className="relative flex-1 min-w-[200px] max-w-[300px]">
+          <div className="relative flex-1 w-full min-w-0 sm:min-w-[200px] sm:max-w-[300px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pm-text-muted" />
             <input
               type="text"

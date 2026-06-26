@@ -120,8 +120,8 @@ export default function RetryMode({
     >
       {/* Retry header */}
       <div className="bg-pm-bg-card border-b border-pm-border-color">
-        <div className="max-w-[1200px] mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-[1200px] mx-auto px-3 sm:px-6 min-h-14 flex flex-wrap items-center justify-between gap-2 py-2 sm:py-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               onClick={onExit}
               className="flex items-center gap-1 text-sm text-pm-text-secondary hover:text-pm-text-primary transition-colors"
@@ -129,13 +129,13 @@ export default function RetryMode({
               <ChevronLeft className="w-4 h-4" />
               返回错题本
             </button>
-            <h2 className="font-heading text-lg font-semibold text-pm-text-primary">错题重刷</h2>
+            <h2 className="hidden sm:block font-heading text-lg font-semibold text-pm-text-primary">错题重刷</h2>
             <span className="text-sm text-pm-text-secondary">
               第 {currentIndex + 1} / {total} 题
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             {/* Progress bar */}
             <div className="w-[200px] hidden sm:block">
               <div className="h-2 rounded-full bg-pm-bg-primary overflow-hidden">
@@ -158,7 +158,7 @@ export default function RetryMode({
       </div>
 
       {/* Content */}
-      <div className="max-w-[800px] mx-auto px-6 py-8 pb-24">
+      <div className="max-w-[800px] mx-auto px-4 sm:px-6 py-5 sm:py-8 pb-28">
         {/* Previous wrong hint */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -246,15 +246,15 @@ export default function RetryMode({
         initial={{ y: 64 }}
         animate={{ y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-        className="fixed bottom-0 left-0 right-0 h-16 bg-pm-bg-card border-t border-pm-border-color z-40"
-        style={{ boxShadow: '0 -4px 12px rgba(0,0,0,0.04)' }}
+        className="fixed bottom-0 left-0 right-0 min-h-14 sm:h-16 bg-pm-bg-card border-t border-pm-border-color z-40"
+        style={{ boxShadow: '0 -4px 12px rgba(0,0,0,0.04)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
-        <div className="max-w-[800px] mx-auto h-full px-6 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="max-w-[800px] mx-auto h-full px-3 sm:px-6 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <button
               onClick={handlePrev}
               disabled={currentIndex === 0}
-              className="flex items-center gap-1 px-3 py-2 rounded-pm-md text-sm font-medium text-pm-text-secondary hover:bg-pm-bg-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-2 sm:px-3 py-2 rounded-pm-md text-xs sm:text-sm font-medium text-pm-text-secondary hover:bg-pm-bg-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed touch-friendly"
             >
               <ChevronLeft className="w-4 h-4" />
               上一题
@@ -262,7 +262,7 @@ export default function RetryMode({
             <button
               onClick={handleNext}
               disabled={currentIndex === total - 1 && !submitted}
-              className="flex items-center gap-1 px-3 py-2 rounded-pm-md text-sm font-medium text-pm-text-secondary hover:bg-pm-bg-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-2 sm:px-3 py-2 rounded-pm-md text-xs sm:text-sm font-medium text-pm-text-secondary hover:bg-pm-bg-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed touch-friendly"
             >
               下一题
               <ChevronRight className="w-4 h-4" />
@@ -275,7 +275,7 @@ export default function RetryMode({
 
           <button
             onClick={handleFinishEarly}
-            className="flex items-center gap-1 px-3 py-2 rounded-pm-md text-sm font-medium text-pm-error hover:bg-pm-error-light transition-colors"
+            className="flex items-center gap-1 px-2 sm:px-3 py-2 rounded-pm-md text-xs sm:text-sm font-medium text-pm-error hover:bg-pm-error-light transition-colors touch-friendly"
           >
             <LogOut className="w-4 h-4" />
             结束重刷

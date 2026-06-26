@@ -420,13 +420,13 @@ export default function WrongBook() {
         className="min-h-[60dvh]"
       >
         <div className="bg-pm-bg-card border-b border-pm-border-color">
-          <div className="max-w-[1200px] mx-auto px-6 py-8">
+          <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
             <div className="flex items-center gap-2 text-xs text-pm-text-muted mb-3">
               <span>首页</span>
               <span>&gt;</span>
               <span className="text-pm-primary font-medium">错题本</span>
             </div>
-            <h1 className="font-heading text-[36px] font-bold text-pm-text-primary mb-1">
+            <h1 className="font-heading text-[28px] sm:text-[36px] font-bold text-pm-text-primary mb-1">
               错题本
             </h1>
             <p className="text-sm text-pm-text-secondary">
@@ -447,7 +447,7 @@ export default function WrongBook() {
     >
       {/* Page header */}
       <div className="bg-pm-bg-card border-b border-pm-border-color">
-        <div className="max-w-[1200px] mx-auto px-6 py-8">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-xs text-pm-text-muted mb-3">
             <span>首页</span>
@@ -459,7 +459,7 @@ export default function WrongBook() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-            className="font-heading text-[36px] font-bold text-pm-text-primary mb-1"
+            className="font-heading text-[28px] sm:text-[36px] font-bold text-pm-text-primary mb-1"
           >
             错题本
           </motion.h1>
@@ -468,7 +468,7 @@ export default function WrongBook() {
           </p>
 
           {/* Stats summary */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -548,7 +548,7 @@ export default function WrongBook() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="max-w-[1200px] mx-auto px-6 pb-3"
+            className="max-w-[1200px] mx-auto px-4 sm:px-6 pb-3"
           >
             <div className="flex items-center gap-3 p-3 rounded-pm-md bg-pm-primary-light border border-pm-primary/20">
               <button
@@ -585,7 +585,7 @@ export default function WrongBook() {
       </AnimatePresence>
 
       {/* Question list */}
-      <div className="max-w-[1200px] mx-auto px-6 py-4 pb-16">
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-4 pb-16">
         {filteredItems.length === 0 ? (
           <motion.div
             initial={{ opacity: 0 }}

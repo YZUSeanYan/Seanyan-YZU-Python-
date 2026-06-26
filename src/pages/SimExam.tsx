@@ -410,10 +410,10 @@ export default function SimExam() {
 
   if (phase === 'select-paper') {
     return (
-      <div className="min-h-[100dvh] bg-[#F5F5F0] px-6 py-10">
+      <div className="min-h-[100dvh] bg-[#F5F5F0] px-4 sm:px-6 py-6 sm:py-10">
         <div className="mx-auto max-w-[1080px]">
-          <div className="mb-8">
-            <h1 className="text-[26px] font-bold text-pm-text-primary">仿真考试</h1>
+          <div className="mb-6 sm:mb-8">
+            <h1 className="text-[24px] sm:text-[26px] font-bold text-pm-text-primary">仿真考试</h1>
             <p className="mt-2 text-sm text-pm-text-secondary">
               请选择一套固定试卷开始考试。题目、答案和解析来自上传的三套 Word 试卷。
             </p>
@@ -440,7 +440,7 @@ export default function SimExam() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.06, duration: 0.3 }}
                   onClick={() => handleSelectPaper(paper)}
-                  className="group rounded-lg border border-[#D4D4D4] bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#0F4C81] hover:shadow-pm-md"
+                  className="group rounded-lg border border-[#D4D4D4] bg-white p-4 sm:p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#0F4C81] hover:shadow-pm-md"
                 >
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
@@ -531,9 +531,9 @@ export default function SimExam() {
       />
 
       {/* 2. Top Info Bar */}
-      <div className="h-[42px] bg-white border-b border-[#D4D4D4] flex items-center px-0 shrink-0">
+      <div className="min-h-[42px] bg-white border-b border-[#D4D4D4] flex flex-wrap sm:flex-nowrap items-center gap-y-1 px-0 shrink-0">
         {/* Left Tabs */}
-        <div className="flex items-center h-full">
+        <div className="flex items-center h-[42px] overflow-x-auto scrollbar-hide max-w-full">
           {(['rules', 'search', 'helper'] as ActiveTab[]).map((tab) => (
             <button
               key={tab}
@@ -552,8 +552,8 @@ export default function SimExam() {
         </div>
 
         {/* Center: Question Type Info */}
-        <div className="flex-1 flex items-center justify-center">
-          <span className="text-[13px] text-pm-text-primary">
+        <div className="order-3 sm:order-none w-full sm:w-auto sm:flex-1 flex items-center justify-center px-3 pb-1 sm:pb-0">
+          <span className="text-[12px] sm:text-[13px] text-pm-text-primary truncate">
             {currentSection?.label}(共{currentSection?.count}题)
             {' '}
             <span className="text-pm-text-secondary">已答：{sectionAnsweredCount}</span>
@@ -563,7 +563,7 @@ export default function SimExam() {
         </div>
 
         {/* Right: Countdown */}
-        <div className="px-4 flex items-center">
+        <div className="ml-auto px-3 sm:px-4 flex items-center">
           <span
             className={`text-[15px] font-mono font-semibold ${
               timeRemaining <= 300 ? 'text-[#CC0000] animate-pulse' : 'text-[#CC0000]'
@@ -577,14 +577,16 @@ export default function SimExam() {
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden">
         {/* 3. Left Sidebar */}
-        <ExamSidebar
-          sections={sections}
-          activeSectionIdx={activeSectionIdx}
-          answers={answers}
-          studentId={authState.user?.studentId}
-          studentName={authState.user?.name}
-          onSwitchSection={handleSwitchSection}
-        />
+        <div className="hidden lg:block">
+          <ExamSidebar
+            sections={sections}
+            activeSectionIdx={activeSectionIdx}
+            answers={answers}
+            studentId={authState.user?.studentId}
+            studentName={authState.user?.name}
+            onSwitchSection={handleSwitchSection}
+          />
+        </div>
 
         {/* 4. Center Question Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -592,7 +594,7 @@ export default function SimExam() {
             <ExamRules onStart={handleStartExam} paperTitle={selectedPaper?.title} sections={sections} />
           ) : activeTab === 'rules' ? (
             <>
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto p-3 sm:p-6">
                 <AnimatePresence mode="wait">
                   {currentQuestion && (
                     <QuestionPanel

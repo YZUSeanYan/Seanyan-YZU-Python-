@@ -21,8 +21,8 @@ export default function Footer() {
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
       className="w-full bg-pm-bg-dark"
     >
-      <div className="max-w-[1200px] mx-auto px-6 pt-12 pb-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 mb-10">
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-10 sm:pt-12 pb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-7 sm:gap-10 mb-8 sm:mb-10">
           <div>
             <div className="flex items-center gap-2 mb-3">
               <PythonLogo className="w-7 h-7" />

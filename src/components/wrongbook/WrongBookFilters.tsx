@@ -56,15 +56,15 @@ export default function WrongBookFilters({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: 0.15, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-      className="max-w-[1200px] mx-auto px-6 pt-6 pb-4"
+      className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-4 sm:pt-6 pb-4"
     >
       {/* Type filter tabs */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
+      <div className="flex flex-nowrap sm:flex-wrap items-center gap-2 mb-4 overflow-x-auto scrollbar-hide">
         {typeTabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => onTypeChange(tab.key)}
-            className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-pm-md text-sm font-medium transition-colors"
+            className="relative shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-pm-md text-sm font-medium transition-colors"
             style={{
               color: selectedType === tab.key ? 'var(--pm-primary)' : 'var(--pm-text-secondary)',
               background: selectedType === tab.key ? 'var(--pm-primary-light)' : 'transparent',
@@ -91,12 +91,12 @@ export default function WrongBookFilters({
       </div>
 
       {/* Filter row */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         {/* Status select */}
         <select
           value={selectedStatus}
           onChange={(e) => onStatusChange(e.target.value as 'all' | 'unmastered' | 'mastered')}
-          className="px-3 py-1.5 rounded-pm-md bg-pm-bg-primary border border-pm-border-color text-sm text-pm-text-primary focus:outline-none focus:border-pm-border-focus cursor-pointer"
+          className="w-full sm:w-auto px-3 py-1.5 rounded-pm-md bg-pm-bg-primary border border-pm-border-color text-sm text-pm-text-primary focus:outline-none focus:border-pm-border-focus cursor-pointer"
         >
           <option value="all">全部状态</option>
           <option value="unmastered">待复习</option>
@@ -107,7 +107,7 @@ export default function WrongBookFilters({
         <select
           value={sortBy}
           onChange={(e) => onSortChange(e.target.value)}
-          className="px-3 py-1.5 rounded-pm-md bg-pm-bg-primary border border-pm-border-color text-sm text-pm-text-primary focus:outline-none focus:border-pm-border-focus cursor-pointer"
+          className="w-full sm:w-auto px-3 py-1.5 rounded-pm-md bg-pm-bg-primary border border-pm-border-color text-sm text-pm-text-primary focus:outline-none focus:border-pm-border-focus cursor-pointer"
         >
           <option value="recent">最近答错</option>
           <option value="count">错题次数</option>
@@ -116,7 +116,7 @@ export default function WrongBookFilters({
         </select>
 
         {/* Search */}
-        <div className="relative flex-1 min-w-[180px] max-w-[260px]">
+        <div className="relative flex-1 w-full min-w-0 sm:min-w-[180px] sm:max-w-[260px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pm-text-muted" />
           <input
             type="text"
@@ -127,11 +127,11 @@ export default function WrongBookFilters({
           />
         </div>
 
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
           {/* Batch mode toggle */}
           <button
             onClick={onToggleBatchMode}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-pm-md text-sm font-medium transition-colors"
+            className="flex-1 sm:flex-none justify-center flex items-center gap-1.5 px-3 py-1.5 rounded-pm-md text-sm font-medium transition-colors"
             style={{
               background: batchMode ? 'var(--pm-primary-light)' : 'transparent',
               color: batchMode ? 'var(--pm-primary)' : 'var(--pm-text-secondary)',
@@ -145,7 +145,7 @@ export default function WrongBookFilters({
           {/* Retry button */}
           <button
             onClick={onStartRetry}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-pm-md bg-pm-primary text-white text-sm font-medium hover:bg-pm-primary-hover transition-colors shadow-pm-primary"
+            className="flex-1 sm:flex-none justify-center flex items-center gap-1.5 px-4 py-1.5 rounded-pm-md bg-pm-primary text-white text-sm font-medium hover:bg-pm-primary-hover transition-colors shadow-pm-primary"
           >
             <Play className="w-4 h-4" />
             开始重刷

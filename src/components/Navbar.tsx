@@ -60,17 +60,17 @@ export default function Navbar() {
       initial={{ y: -64 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-      className="fixed top-0 left-0 right-0 z-50 h-16 bg-pm-bg-card border-b border-pm-border"
+      className="fixed top-0 left-0 right-0 z-50 h-14 sm:h-16 bg-pm-bg-card border-b border-pm-border"
       style={{
         boxShadow: scrolled ? 'var(--pm-shadow-sm)' : 'none',
         transition: 'box-shadow 200ms ease',
       }}
     >
-      <div className="max-w-[1200px] mx-auto h-full px-4 flex items-center justify-between">
+      <div className="max-w-[1200px] mx-auto h-full px-3 sm:px-4 flex items-center justify-between">
         {/* Logo */}
         <NavLink to="/" className="flex items-center gap-2 shrink-0">
-          <PythonLogo className="w-8 h-8" />
-          <span className="font-heading font-semibold text-[22px] text-pm-primary">
+          <PythonLogo className="w-7 h-7 sm:w-8 sm:h-8" />
+          <span className="font-heading font-semibold text-[18px] sm:text-[22px] text-pm-primary">
             SeanYan
           </span>
         </NavLink>
@@ -108,7 +108,7 @@ export default function Navbar() {
         </div>
 
         {/* Right Section */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3">
           {/* Streak Badge */}
           <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-pm-full bg-pm-orange-light">
             <Flame className="w-4 h-4 text-pm-orange" />
@@ -120,7 +120,7 @@ export default function Navbar() {
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-pm-md hover:bg-pm-bg-primary transition-colors"
+                className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 rounded-pm-md hover:bg-pm-bg-primary transition-colors"
               >
                 <div className="w-8 h-8 rounded-full bg-pm-primary flex items-center justify-center shrink-0">
                   <span className="text-sm font-semibold text-white">
@@ -140,7 +140,7 @@ export default function Navbar() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -4, scale: 0.96 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-1.5 w-48 bg-white rounded-pm-lg border border-pm-border shadow-pm-lg py-1 z-50"
+                    className="absolute right-0 top-full mt-1.5 w-[min(92vw,12rem)] bg-white rounded-pm-lg border border-pm-border shadow-pm-lg py-1 z-50"
                   >
                     <div className="px-3 py-2 border-b border-pm-border mb-1">
                       <p className="text-sm font-medium text-pm-text-primary truncate">
@@ -210,7 +210,7 @@ export default function Navbar() {
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
-          className="md:hidden bg-pm-bg-card border-b border-pm-border shadow-pm-lg"
+          className="md:hidden bg-pm-bg-card border-b border-pm-border shadow-pm-lg max-h-[calc(100dvh-3.5rem)] overflow-y-auto"
         >
           <div className="px-4 py-3 space-y-1">
             {navLinks.map((link) => {

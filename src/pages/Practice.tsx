@@ -419,7 +419,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
     >
       {/* Filter header */}
       {isExamMode && (
-        <div className="max-w-[1200px] mx-auto px-6 pt-6">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-4 sm:pt-6">
           <div className="rounded-pm-lg border border-pm-primary/20 bg-pm-primary-light px-4 py-3">
             <p className="text-sm font-semibold text-pm-primary">练习模式2：三套卷专项练习</p>
             <p className="mt-1 text-xs text-pm-text-secondary">
@@ -442,8 +442,8 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
       />
 
       {/* Main content */}
-      <div className="max-w-[1200px] mx-auto px-6 py-6 pb-24">
-        <div className="flex gap-6">
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-4 sm:py-6 pb-28">
+        <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
           {/* Left sidebar - navigator */}
           <div className="hidden lg:block w-[280px] shrink-0">
             <div className="sticky top-20">

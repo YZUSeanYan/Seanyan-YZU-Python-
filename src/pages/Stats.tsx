@@ -117,12 +117,12 @@ export default function Stats() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-        className="max-w-[1200px] mx-auto px-6 py-20"
+        className="max-w-[1200px] mx-auto px-4 sm:px-6 py-12 sm:py-20"
       >
         {/* Header */}
-        <div className="bg-pm-bg-card border-b border-pm-border px-6 py-8 rounded-pm-xl mb-8">
+        <div className="bg-pm-bg-card border-b border-pm-border px-4 sm:px-6 py-6 sm:py-8 rounded-pm-xl mb-8">
           <p className="text-xs text-pm-text-muted mb-2">首页 &gt; 学习统计</p>
-          <h1 className="font-heading text-[36px] font-bold text-pm-text-primary mb-2">
+          <h1 className="font-heading text-[28px] sm:text-[36px] font-bold text-pm-text-primary mb-2">
             学习统计
           </h1>
           <p className="text-pm-text-secondary">追踪你的学习进度，发现薄弱环节</p>
@@ -136,16 +136,16 @@ export default function Stats() {
           <p className="text-pm-text-secondary text-sm mb-6">
             开始练习后，这里会展示你的学习统计和分析。
           </p>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <a
               href="#/practice"
-              className="px-6 py-2.5 bg-pm-primary text-white rounded-pm-full text-sm font-medium hover:bg-pm-primary-hover transition-colors"
+              className="px-6 py-2.5 bg-pm-primary text-white rounded-pm-full text-sm font-medium hover:bg-pm-primary-hover transition-colors text-center"
             >
               开始练习
             </a>
             <a
               href="#/exam"
-              className="px-6 py-2.5 border border-pm-primary text-pm-primary rounded-pm-full text-sm font-medium hover:bg-pm-primary-light transition-colors"
+              className="px-6 py-2.5 border border-pm-primary text-pm-primary rounded-pm-full text-sm font-medium hover:bg-pm-primary-light transition-colors text-center"
             >
               模拟考试
             </a>
@@ -160,18 +160,18 @@ export default function Stats() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-      className="max-w-[1200px] mx-auto px-6 pb-20"
+      className="max-w-[1200px] mx-auto px-4 sm:px-6 pb-16 sm:pb-20"
     >
       {/* Page Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-        className="bg-pm-bg-card border-b border-pm-border px-6 py-8 rounded-pm-xl mt-6 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+        className="bg-pm-bg-card border-b border-pm-border px-4 sm:px-6 py-6 sm:py-8 rounded-pm-xl mt-4 sm:mt-6 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
       >
         <div>
           <p className="text-xs text-pm-text-muted mb-2">首页 &gt; 学习统计</p>
-          <h1 className="font-heading text-[36px] font-bold text-pm-text-primary mb-1">
+          <h1 className="font-heading text-[28px] sm:text-[36px] font-bold text-pm-text-primary mb-1">
             学习统计
           </h1>
           <p className="text-pm-text-secondary text-sm">追踪你的学习进度，发现薄弱环节</p>
@@ -205,7 +205,7 @@ export default function Stats() {
       </motion.div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 mb-6">
         <StatCard
           icon={BookOpen}
           iconColor="#0F4C81"
@@ -243,14 +243,14 @@ export default function Stats() {
       </div>
 
       {/* Progress Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6">
         {/* Overall Progress Ring */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
           whileHover={{ y: -2, boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}
-          className="bg-pm-bg-card rounded-pm-lg shadow-pm-md p-8"
+          className="bg-pm-bg-card rounded-pm-lg shadow-pm-md p-5 sm:p-8"
         >
           <h3 className="font-heading text-[22px] font-semibold text-pm-text-primary mb-6">
             总体进度
@@ -312,7 +312,7 @@ export default function Stats() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
           whileHover={{ y: -2, boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}
-          className="bg-pm-bg-card rounded-pm-lg shadow-pm-md p-8"
+          className="bg-pm-bg-card rounded-pm-lg shadow-pm-md p-5 sm:p-8"
         >
           <h3 className="font-heading text-[22px] font-semibold text-pm-text-primary mb-6">
             各题型正确率
@@ -347,7 +347,7 @@ export default function Stats() {
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6">
         <AccuracyTrend data={trendData} delay={500} />
         <KnowledgeChart data={categoryData} delay={600} />
       </div>
@@ -358,7 +358,7 @@ export default function Stats() {
       </div>
 
       {/* Study Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <StudyHeatmap data={heatmapData} delay={800} />
         <DailyVolume data={trendData} delay={900} />
       </div>

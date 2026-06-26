@@ -12,6 +12,10 @@
 }
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
   :root {
     --background: 210 20% 98%;
     --foreground: 222 47% 11%;
@@ -92,12 +96,33 @@
     @apply bg-pm-bg-primary text-pm-text-primary;
     font-family: 'Inter', sans-serif;
     letter-spacing: 0;
+    overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Space Grotesk', sans-serif;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  @media (max-width: 640px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+
+    .touch-friendly {
+      min-height: 44px;
+      min-width: 44px;
+    }
   }
 }
