@@ -1,6 +1,17 @@
 // Hybrid API client: uses backend API when available, falls back to localStorage
-// 后端API地址（通过HTTPS域名访问）
-const API_BASE = 'https://api.seanyan.store';
+// 后端API地址：
+// - 线上优先使用同源 /api，保证 IP 直连时也能登录和同步数据。
+// - 本地 Vite 开发时仍访问线上 API，避免没有 dev proxy 时误判离线。
+function getApiBase() {
+  if (typeof window === 'undefined') return '';
+  const { hostname, origin } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'https://api.seanyan.store';
+  }
+  return origin;
+}
+
+const API_BASE = getApiBase();
 
 // Health-check cache. We re-check at most every HEALTH_TTL_MS, but in-flight
 // checks are de-duplicated so a thundering herd of /api/users etc. does not
