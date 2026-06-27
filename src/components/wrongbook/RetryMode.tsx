@@ -5,6 +5,7 @@ import type { Question } from '@/types';
 import QuestionCard from '@/components/practice/QuestionCard';
 import ExplanationPanel from '@/components/practice/ExplanationPanel';
 import { isQuestionAnswerCorrect } from '@/lib/answerCheck';
+import { playErrorBuzz, playFinish, playNext, playSelect, playSuccessChime } from '@/lib/sound';
 
 interface RetryQuestion {
   question: Question;
@@ -39,6 +40,7 @@ export default function RetryMode({
 
   const handleSelectAnswer = useCallback((answer: string) => {
     if (!submitted) {
+      playSelect();
       setSelectedAnswer(answer);
     }
   }, [submitted]);
@@ -47,6 +49,11 @@ export default function RetryMode({
     if (!current || !selectedAnswer) return;
 
     const isCorrect = isQuestionAnswerCorrect(current.question, selectedAnswer);
+    if (isCorrect) {
+      playSuccessChime();
+    } else {
+      playErrorBuzz();
+    }
 
     setSubmitted(true);
     setResults((prev) => ({ ...prev, [currentIndex]: isCorrect }));
@@ -59,10 +66,12 @@ export default function RetryMode({
 
   const handleNext = useCallback(() => {
     if (currentIndex < total - 1) {
+      playNext();
       setCurrentIndex((i) => i + 1);
       setSelectedAnswer(null);
       setSubmitted(false);
     } else {
+      playFinish();
       // Complete
       const c = Object.values(results).filter(Boolean).length;
       const answeredCount = Object.keys(results).length;
@@ -78,6 +87,7 @@ export default function RetryMode({
 
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
+      playNext();
       setCurrentIndex((i) => i - 1);
       setSelectedAnswer(null);
       setSubmitted(false);
@@ -85,11 +95,13 @@ export default function RetryMode({
   }, [currentIndex]);
 
   const handleSkip = useCallback(() => {
+    playNext();
     setResults((prev) => ({ ...prev, [currentIndex]: false }));
     setSubmitted(true);
   }, [currentIndex]);
 
   const handleFinishEarly = useCallback(() => {
+    playFinish();
     const c = Object.values(results).filter(Boolean).length;
     const answeredCount = Object.keys(results).length;
     onComplete({
