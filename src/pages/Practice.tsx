@@ -17,6 +17,7 @@ import { playErrorBuzz, playFinish, playNext, playSelect, playSuccessChime } fro
 
 type AnswerState = 'unanswered' | 'correct' | 'wrong' | 'skipped';
 type PracticeMode = 'all' | 'exam';
+const SKIPPED_ANSWER_LABEL = '未作答/跳过';
 
 function scrollToPracticeTop() {
   window.requestAnimationFrame(() => {
@@ -278,6 +279,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
   }, [currentQuestion, selectedAnswer, currentIndex, isAnswerCorrect, recordAnswer, addWrongAnswer]);
 
   const handleSkip = useCallback(() => {
+    if (!currentQuestion) return;
     playNext();
     setAnswerStates((prev) => {
       const next = [...prev];
@@ -286,6 +288,24 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
     });
     setUserAnswers((prev) => ({ ...prev, [currentIndex]: null }));
     setResults((prev) => ({ ...prev, [currentIndex]: false }));
+    recordAnswer(
+      {
+        questionId: currentQuestion.id,
+        userAnswer: SKIPPED_ANSWER_LABEL,
+        isCorrect: false,
+        answeredAt: new Date().toISOString(),
+        timeSpent: 0,
+      },
+      currentQuestion.type,
+      currentQuestion.category
+    );
+    addWrongAnswer(
+      currentQuestion.id,
+      SKIPPED_ANSWER_LABEL,
+      Array.isArray(currentQuestion.answer)
+        ? currentQuestion.answer.join(' | ')
+        : currentQuestion.answer
+    );
 
     const retryPosition = retryWrongIndices?.indexOf(currentIndex) ?? -1;
     const nextRetryIndex =
@@ -309,7 +329,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
       setRetryWrongIndices(null);
       setShowResult(true);
     }
-  }, [currentIndex, filteredQuestions.length, retryWrongIndices]);
+  }, [currentIndex, currentQuestion, filteredQuestions.length, retryWrongIndices, recordAnswer, addWrongAnswer]);
 
   const handleNavigate = useCallback((index: number) => {
     playNext();
@@ -388,7 +408,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
 
   const handleRetryWrong = useCallback(() => {
     const wrongIndices = answerStates
-      .map((s, i) => (s === 'wrong' ? i : -1))
+      .map((s, i) => (s === 'wrong' || s === 'skipped' ? i : -1))
       .filter((i) => i !== -1);
 
     if (wrongIndices.length > 0) {
@@ -452,6 +472,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
   const correctCount = answerStates.filter((s) => s === 'correct').length;
   const wrongCount = answerStates.filter((s) => s === 'wrong').length;
   const skippedCount = answerStates.filter((s) => s === 'skipped').length;
+  const reviewWrongCount = wrongCount + skippedCount;
   const retryPosition = retryWrongIndices?.indexOf(currentIndex) ?? -1;
   const isRetryingWrong = Boolean(retryWrongIndices?.length && retryPosition >= 0);
 
@@ -653,7 +674,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
           <PracticeResult
             total={filteredQuestions.length}
             correct={correctCount}
-            wrong={wrongCount}
+            wrong={reviewWrongCount}
             skipped={skippedCount}
             onRetryWrong={handleRetryWrong}
             onContinue={handleContinue}
