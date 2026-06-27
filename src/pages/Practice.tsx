@@ -53,6 +53,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
   const [showMobilePicker, setShowMobilePicker] = useState(false);
   const [direction, setDirection] = useState(1);
   const [pendingProgress, setPendingProgress] = useState<PracticeProgress | null>(null);
+  const [retryWrongIndices, setRetryWrongIndices] = useState<number[] | null>(null);
 
   const examQuestions = useMemo(
     () =>
@@ -116,6 +117,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
     setUserAnswers({});
     setResults({});
     setShowResult(false);
+    setRetryWrongIndices(null);
   }, [filterSignature, filteredQuestions.length]);
 
   // Restore saved practice progress once questions and user data are ready.
@@ -158,6 +160,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
     setSelectedAnswer(pendingProgress.userAnswers?.[restoredIndex] || null);
     setSubmitted(restoredStates[restoredIndex] !== 'unanswered');
     setShowResult(false);
+    setRetryWrongIndices(null);
     setPendingProgress(null);
     isRestoring.current = false;
     hasResumed.current = true;
@@ -284,16 +287,29 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
     setUserAnswers((prev) => ({ ...prev, [currentIndex]: null }));
     setResults((prev) => ({ ...prev, [currentIndex]: false }));
 
-    if (currentIndex < filteredQuestions.length - 1) {
+    const retryPosition = retryWrongIndices?.indexOf(currentIndex) ?? -1;
+    const nextRetryIndex =
+      retryPosition >= 0 && retryWrongIndices && retryPosition < retryWrongIndices.length - 1
+        ? retryWrongIndices[retryPosition + 1]
+        : null;
+
+    if (nextRetryIndex !== null) {
+      setDirection(1);
+      setCurrentIndex(nextRetryIndex);
+      setSelectedAnswer(null);
+      setSubmitted(false);
+      scrollToPracticeTop();
+    } else if (!retryWrongIndices && currentIndex < filteredQuestions.length - 1) {
       setDirection(1);
       setCurrentIndex((i) => i + 1);
       setSelectedAnswer(null);
       setSubmitted(false);
       scrollToPracticeTop();
     } else {
+      setRetryWrongIndices(null);
       setShowResult(true);
     }
-  }, [currentIndex, filteredQuestions.length]);
+  }, [currentIndex, filteredQuestions.length, retryWrongIndices]);
 
   const handleNavigate = useCallback((index: number) => {
     playNext();
@@ -306,6 +322,23 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
   }, [currentIndex, userAnswers, answerStates]);
 
   const handleNext = useCallback(() => {
+    if (retryWrongIndices?.length) {
+      const retryPosition = retryWrongIndices.indexOf(currentIndex);
+      if (retryPosition >= 0 && retryPosition < retryWrongIndices.length - 1) {
+        const nextIndex = retryWrongIndices[retryPosition + 1];
+        playNext();
+        setDirection(1);
+        setCurrentIndex(nextIndex);
+        setSelectedAnswer(userAnswers[nextIndex] || null);
+        setSubmitted(answerStates[nextIndex] !== 'unanswered');
+        scrollToPracticeTop();
+      } else {
+        setRetryWrongIndices(null);
+        setShowResult(true);
+      }
+      return;
+    }
+
     if (currentIndex < filteredQuestions.length - 1) {
       playNext();
       setDirection(1);
@@ -314,9 +347,23 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
       setSubmitted(answerStates[currentIndex + 1] !== 'unanswered');
       scrollToPracticeTop();
     }
-  }, [currentIndex, filteredQuestions.length, userAnswers, answerStates]);
+  }, [currentIndex, filteredQuestions.length, userAnswers, answerStates, retryWrongIndices]);
 
   const handlePrev = useCallback(() => {
+    if (retryWrongIndices?.length) {
+      const retryPosition = retryWrongIndices.indexOf(currentIndex);
+      if (retryPosition > 0) {
+        const prevIndex = retryWrongIndices[retryPosition - 1];
+        playNext();
+        setDirection(-1);
+        setCurrentIndex(prevIndex);
+        setSelectedAnswer(userAnswers[prevIndex] || null);
+        setSubmitted(answerStates[prevIndex] !== 'unanswered');
+        scrollToPracticeTop();
+      }
+      return;
+    }
+
     if (currentIndex > 0) {
       playNext();
       setDirection(-1);
@@ -325,7 +372,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
       setSubmitted(answerStates[currentIndex - 1] !== 'unanswered');
       scrollToPracticeTop();
     }
-  }, [currentIndex, userAnswers, answerStates]);
+  }, [currentIndex, userAnswers, answerStates, retryWrongIndices]);
 
   const handleFinish = useCallback(() => {
     setShowFinishDialog(true);
@@ -335,6 +382,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
     playFinish();
     clearProgress();
     setShowFinishDialog(false);
+    setRetryWrongIndices(null);
     setShowResult(true);
   }, [clearProgress]);
 
@@ -345,7 +393,28 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
 
     if (wrongIndices.length > 0) {
       playNext();
-      // Navigate to first wrong question
+      setRetryWrongIndices(wrongIndices);
+      setAnswerStates((prev) => {
+        const next = [...prev];
+        wrongIndices.forEach((index) => {
+          next[index] = 'unanswered';
+        });
+        return next;
+      });
+      setUserAnswers((prev) => {
+        const next = { ...prev };
+        wrongIndices.forEach((index) => {
+          delete next[index];
+        });
+        return next;
+      });
+      setResults((prev) => {
+        const next = { ...prev };
+        wrongIndices.forEach((index) => {
+          delete next[index];
+        });
+        return next;
+      });
       setCurrentIndex(wrongIndices[0]);
       setSelectedAnswer(null);
       setSubmitted(false);
@@ -372,6 +441,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
       );
     }
     setShowResult(false);
+    setRetryWrongIndices(null);
     playNext();
     setCurrentIndex(0);
     setSelectedAnswer(null);
@@ -382,6 +452,8 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
   const correctCount = answerStates.filter((s) => s === 'correct').length;
   const wrongCount = answerStates.filter((s) => s === 'wrong').length;
   const skippedCount = answerStates.filter((s) => s === 'skipped').length;
+  const retryPosition = retryWrongIndices?.indexOf(currentIndex) ?? -1;
+  const isRetryingWrong = Boolean(retryWrongIndices?.length && retryPosition >= 0);
 
   if (isLoading) {
     return (
@@ -509,8 +581,8 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
         total={filteredQuestions.length}
         hasAnswer={!!selectedAnswer}
         submitted={submitted}
-        isFirst={currentIndex === 0}
-        isLast={currentIndex === filteredQuestions.length - 1}
+        isFirst={isRetryingWrong ? retryPosition === 0 : currentIndex === 0}
+        isLast={isRetryingWrong ? retryPosition === (retryWrongIndices?.length || 0) - 1 : currentIndex === filteredQuestions.length - 1}
         onPrev={handlePrev}
         onNext={handleNext}
         onPicker={() => setShowMobilePicker(true)}
