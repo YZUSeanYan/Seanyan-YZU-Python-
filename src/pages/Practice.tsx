@@ -311,6 +311,39 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
     }
   }, [currentIndex, currentQuestion, filteredQuestions.length, retryWrongIndices, recordAnswer, addWrongAnswer]);
 
+  const handleRevealAnswer = useCallback(() => {
+    if (!currentQuestion) return;
+    playErrorBuzz();
+    setAnswerStates((prev) => {
+      const next = [...prev];
+      next[currentIndex] = 'skipped';
+      return next;
+    });
+    setUserAnswers((prev) => ({ ...prev, [currentIndex]: null }));
+    setResults((prev) => ({ ...prev, [currentIndex]: false }));
+    recordAnswer(
+      {
+        questionId: currentQuestion.id,
+        userAnswer: SKIPPED_ANSWER_LABEL,
+        isCorrect: false,
+        answeredAt: new Date().toISOString(),
+        timeSpent: 0,
+      },
+      currentQuestion.type,
+      currentQuestion.category
+    );
+    addWrongAnswer(
+      currentQuestion.id,
+      SKIPPED_ANSWER_LABEL,
+      Array.isArray(currentQuestion.answer)
+        ? currentQuestion.answer.join(' | ')
+        : currentQuestion.answer
+    );
+    setSelectedAnswer(null);
+    setSubmitted(true);
+    scrollToPracticeTop();
+  }, [currentIndex, currentQuestion, recordAnswer, addWrongAnswer]);
+
   const handleNavigate = useCallback((index: number) => {
     playNext();
     setDirection(index > currentIndex ? 1 : -1);
@@ -550,6 +583,7 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
                     onSelectAnswer={handleSelectAnswer}
                     onSubmit={handleSubmit}
                     onSkip={handleSkip}
+                    onRevealAnswer={handleRevealAnswer}
                   />
                 </motion.div>
               )}

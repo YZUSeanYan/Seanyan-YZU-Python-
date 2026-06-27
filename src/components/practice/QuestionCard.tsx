@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bookmark, BookmarkCheck, Lightbulb } from 'lucide-react';
+import { Bookmark, BookmarkCheck, Eye, Lightbulb } from 'lucide-react';
 import type { Question } from '@/types';
 import AnswerOptions from './AnswerOptions';
 import QuestionContent from './QuestionContent';
@@ -12,6 +12,7 @@ interface QuestionCardProps {
   onSelectAnswer: (answer: string) => void;
   onSubmit: () => void;
   onSkip: () => void;
+  onRevealAnswer?: () => void;
 }
 
 const typeLabels: Record<string, string> = {
@@ -47,6 +48,7 @@ export default function QuestionCard({
   onSelectAnswer,
   onSubmit,
   onSkip,
+  onRevealAnswer,
 }: QuestionCardProps) {
   const [showHint, setShowHint] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
@@ -220,6 +222,15 @@ export default function QuestionCard({
           >
             跳过此题
           </button>
+          {onRevealAnswer && (
+            <button
+              onClick={onRevealAnswer}
+              className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-pm-md border border-pm-error/30 bg-pm-error-light text-pm-error text-sm font-medium hover:bg-pm-error-light/80 transition-colors"
+            >
+              <Eye className="w-4 h-4" />
+              查看答案
+            </button>
+          )}
           <button
             onClick={() => setShowHint(!showHint)}
             className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-pm-md text-pm-orange text-sm font-medium hover:bg-pm-orange-light transition-colors"

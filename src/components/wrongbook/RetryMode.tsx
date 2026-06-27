@@ -199,6 +199,7 @@ export default function RetryMode({
               onSelectAnswer={handleSelectAnswer}
               onSubmit={handleSubmit}
               onSkip={handleSkip}
+              onRevealAnswer={handleSkip}
             />
           </motion.div>
         </AnimatePresence>
