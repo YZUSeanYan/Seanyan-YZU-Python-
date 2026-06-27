@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Trophy, RotateCcw, Home, CheckCircle, XCircle, HelpCircle, Clock, Target, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import type { Question, QuestionType } from '@/types';
+import { isQuestionAnswerCorrect } from '@/lib/answerCheck';
 
 interface ExamSection {
   type: QuestionType;
@@ -36,23 +37,8 @@ function formatTime(seconds: number) {
   return `${m}分${s}秒`;
 }
 
-function normalizeAnswer(answer: string) {
-  const trimmed = answer.trim();
-  const match = trimmed.match(/^([A-D])[.\s]?/i);
-  return match ? match[1].toUpperCase() : trimmed.toLowerCase();
-}
-
 function isAnswerCorrect(question: Question, answer?: string) {
-  if (!answer) return false;
-  if (question.type === 'single') {
-    const correctAnswer = Array.isArray(question.answer) ? question.answer[0] : question.answer;
-    return normalizeAnswer(answer) === normalizeAnswer(correctAnswer);
-  }
-  if (Array.isArray(question.answer)) {
-    const answerParts = answer.split('|').map((part) => part.trim().toLowerCase());
-    return question.answer.every((part, index) => answerParts[index] === String(part).trim().toLowerCase());
-  }
-  return answer.trim().toLowerCase() === question.answer.trim().toLowerCase();
+  return isQuestionAnswerCorrect(question, answer);
 }
 
 function answerText(value: unknown) {

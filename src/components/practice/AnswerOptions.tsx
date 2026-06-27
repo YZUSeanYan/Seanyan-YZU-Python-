@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Check, X } from 'lucide-react';
 import type { Question } from '@/types';
+import { normalizeChoiceAnswer } from '@/lib/answerCheck';
 
 interface AnswerOptionsProps {
   question: Question;
@@ -8,19 +9,6 @@ interface AnswerOptionsProps {
   submitted: boolean;
   correctAnswer: string | string[];
   onSelect: (answer: string) => void;
-}
-
-// Helper: extract answer letter from various formats ('A', 'A. xxx', 'A.xxx', etc.)
-function extractAnswerLetter(answer: string | string[]): string {
-  const ans = Array.isArray(answer) ? answer[0] : answer;
-  if (!ans) return '';
-  const trimmed = ans.trim();
-  // Single letter like 'A', 'B', 'C', 'D'
-  if (/^[A-D]$/i.test(trimmed)) return trimmed.toUpperCase();
-  // Format like 'A. xxx' or 'A.xxx' or 'A xxx'
-  const match = trimmed.match(/^([A-D])[.\s]/i);
-  if (match) return match[1].toUpperCase();
-  return trimmed.toUpperCase();
 }
 
 const optionLabels = ['A', 'B', 'C', 'D'];
@@ -38,10 +26,10 @@ export default function AnswerOptions({
     if (!submitted) {
       return selectedAnswer === option ? 'selected' : 'default';
     }
-    const correctLabel = extractAnswerLetter(correctAnswer);
+    const correctLabel = normalizeChoiceAnswer(correctAnswer);
     const currentLabel = optionLabels[index];
     // Extract letter from user's selected answer too
-    const selectedLetter = selectedAnswer ? extractAnswerLetter(selectedAnswer) : '';
+    const selectedLetter = selectedAnswer ? normalizeChoiceAnswer(selectedAnswer) : '';
 
     if (currentLabel === correctLabel) return 'correct';
     if (selectedLetter === currentLabel && currentLabel !== correctLabel) return 'wrong';

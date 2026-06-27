@@ -16,6 +16,7 @@ import QuestionPicker from '@/components/simexam/QuestionPicker';
 import ExamRules from '@/components/simexam/ExamRules';
 import ScoreReport from '@/components/simexam/ScoreReport';
 import SubmitConfirm from '@/components/simexam/SubmitConfirm';
+import { isQuestionAnswerCorrect } from '@/lib/answerCheck';
 import { playNext } from '@/lib/sound';
 
 interface ExamSection {
@@ -54,21 +55,8 @@ function buildSections(paper: ExamPaper): ExamSection[] {
     .filter((section) => section.questions.length > 0);
 }
 
-function normalizeAnswer(answer: string) {
-  const trimmed = answer.trim();
-  const match = trimmed.match(/^([A-D])[.\s]?/i);
-  return match ? match[1].toUpperCase() : trimmed.toLowerCase();
-}
-
 function isQuestionCorrect(question: Question, answer?: string) {
-  if (!answer) return false;
-  const correctAnswer = Array.isArray(question.answer) ? question.answer : [question.answer];
-  if (question.type === 'single') return normalizeAnswer(answer) === normalizeAnswer(String(correctAnswer[0]));
-  if (Array.isArray(question.answer)) {
-    const answerParts = answer.split('|').map((part) => part.trim().toLowerCase());
-    return question.answer.every((part, index) => answerParts[index] === String(part).trim().toLowerCase());
-  }
-  return answer.trim().toLowerCase() === String(correctAnswer[0]).trim().toLowerCase();
+  return isQuestionAnswerCorrect(question, answer);
 }
 
 interface SimExamProgress {

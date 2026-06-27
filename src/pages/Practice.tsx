@@ -13,6 +13,7 @@ import BottomNav from '@/components/practice/BottomNav';
 import PracticeResult from '@/components/practice/PracticeResult';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { usePracticeProgress, type PracticeProgress } from '@/hooks/usePracticeProgress';
+import { isQuestionAnswerCorrect } from '@/lib/answerCheck';
 import { playErrorBuzz, playFinish, playNext, playSelect, playSuccessChime } from '@/lib/sound';
 
 type AnswerState = 'unanswered' | 'correct' | 'wrong' | 'skipped';
@@ -207,30 +208,9 @@ export default function Practice({ mode = 'all' }: { mode?: PracticeMode }) {
     }
   }, [submitted]);
 
-  // Helper: extract answer letter from various formats
-  const extractAnswerLetter = (answer: string): string => {
-    const trimmed = answer.trim();
-    if (/^[A-D]$/i.test(trimmed)) return trimmed.toUpperCase();
-    const match = trimmed.match(/^([A-D])[.\s]/i);
-    if (match) return match[1].toUpperCase();
-    return trimmed.toUpperCase();
-  };
-
   const isAnswerCorrect = useCallback((answer: string) => {
     if (!currentQuestion) return false;
-    if (currentQuestion.type === 'single') {
-      const correctAnswer = Array.isArray(currentQuestion.answer)
-        ? currentQuestion.answer[0]
-        : currentQuestion.answer;
-      return extractAnswerLetter(answer) === extractAnswerLetter(correctAnswer);
-    }
-    if (Array.isArray(currentQuestion.answer)) {
-      const answerParts = answer.split('|').map((part) => part.trim().toLowerCase());
-      return currentQuestion.answer.every(
-        (part, index) => answerParts[index] === String(part).trim().toLowerCase()
-      );
-    }
-    return answer.trim().toLowerCase() === currentQuestion.answer.toLowerCase();
+    return isQuestionAnswerCorrect(currentQuestion, answer);
   }, [currentQuestion]);
 
   const handleSubmit = useCallback(() => {

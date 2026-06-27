@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, LogOut, CheckCircle, XCircle, AlertTriangle 
 import type { Question } from '@/types';
 import QuestionCard from '@/components/practice/QuestionCard';
 import ExplanationPanel from '@/components/practice/ExplanationPanel';
+import { isQuestionAnswerCorrect } from '@/lib/answerCheck';
 
 interface RetryQuestion {
   question: Question;
@@ -45,14 +46,7 @@ export default function RetryMode({
   const handleSubmit = useCallback(() => {
     if (!current || !selectedAnswer) return;
 
-    const correctAnswer = Array.isArray(current.question.answer)
-      ? current.question.answer[0]
-      : current.question.answer;
-
-    const isCorrect =
-      current.question.type === 'single'
-        ? selectedAnswer === correctAnswer
-        : selectedAnswer.trim().toLowerCase() === correctAnswer.toLowerCase();
+    const isCorrect = isQuestionAnswerCorrect(current.question, selectedAnswer);
 
     setSubmitted(true);
     setResults((prev) => ({ ...prev, [currentIndex]: isCorrect }));
