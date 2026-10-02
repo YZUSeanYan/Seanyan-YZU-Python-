@@ -16,7 +16,7 @@ import { getSoundVolume, isSoundEnabled, playSoundPreview, setSoundEnabled, setS
 import { releaseNotes } from '@/data/releaseNotes';
 
 const githubUrl = 'https://github.com/YZUSeanYan';
-const email = 'z40681992@163.com';
+const email = 'hanshangdeveloper@163.com';
 
 export default function Settings() {
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
