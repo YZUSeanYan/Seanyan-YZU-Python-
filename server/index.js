@@ -147,6 +147,10 @@ function ensureAdmin() {
   const admin = stmts.findUserByStudentId.get('admin');
   if (!admin) {
     stmts.createUser.run('admin-default', 'admin', '管理员', hashPassword(ADMIN_PASSWORD), 'admin', '', 1, new Date().toISOString());
+  } else if (!verifyPassword(ADMIN_PASSWORD, admin.password)) {
+    // Invalidate any sessions created with the old admin password.
+    stmts.updateUserPassword.run(hashPassword(ADMIN_PASSWORD), 'admin');
+    security.revokeUserSessions(admin.id);
   }
 }
 security.migrateLegacyPasswords();
