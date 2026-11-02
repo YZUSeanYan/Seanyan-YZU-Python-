@@ -41,8 +41,7 @@ export default function Login() {
     }
     setIsSubmitting(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      login(studentId.trim(), password);
+      await login(studentId.trim(), password);
       navigate('/');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '登录失败';
@@ -73,8 +72,7 @@ export default function Login() {
     }
     setIsSubmitting(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      register(studentId.trim(), name.trim(), password);
+      await register(studentId.trim(), name.trim(), password);
       navigate('/');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '注册失败';
