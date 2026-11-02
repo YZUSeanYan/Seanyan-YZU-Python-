@@ -22,7 +22,11 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 function getUsers(): User[] {
   try {
     const raw = localStorage.getItem(USERS_KEY);
-    return raw ? (JSON.parse(raw) as User[]) : [];
+    if (!raw) return [];
+    const users = JSON.parse(raw) as User[];
+    const sanitized = users.map(({ password: _discard, ...safeUser }) => safeUser as User);
+    localStorage.setItem(USERS_KEY, JSON.stringify(sanitized));
+    return sanitized;
   } catch {
     return [];
   }
@@ -65,6 +69,11 @@ const defaultUserData = (userId: string): UserData => ({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // Discard pre-migration offline user lists (which included plaintext passwords).
+  useEffect(() => {
+    localStorage.removeItem('seanyan_users');
+    getUsers();
+  }, []);
   const [authState, setAuthState] = useState<AuthState>(getAuthState);
 
   useEffect(() => {
@@ -188,6 +197,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void api.logout().catch(() => {});
     setAuthState({ user: null, isLoggedIn: false });
     localStorage.removeItem(AUTH_STATE_KEY);
+    localStorage.removeItem(USERS_KEY);
+    localStorage.removeItem('seanyan_users');
   }, []);
 
   const isAdmin = useCallback((): boolean => authState.user?.role === 'admin', [authState.user]);
