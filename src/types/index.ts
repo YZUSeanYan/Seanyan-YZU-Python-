@@ -81,7 +81,7 @@ export interface User {
   id: string;
   studentId: string; // 学号，如 "2024001"
   name: string;
-  password: string; // 明文存储（本地应用，非生产环境）
+  password?: string; // 仅为兼容旧页面类型；服务端不返回密码
   role: 'student' | 'admin';
   remarkName?: string;
   practice2Enabled?: boolean;
