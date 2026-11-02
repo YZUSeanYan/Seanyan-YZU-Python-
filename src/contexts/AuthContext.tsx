@@ -22,7 +22,11 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 function getUsers(): User[] {
   try {
     const raw = localStorage.getItem(USERS_KEY);
-    return raw ? (JSON.parse(raw) as User[]) : [];
+    if (!raw) return [];
+    const users = JSON.parse(raw) as User[];
+    const sanitized = users.map(({ password: _discard, ...safeUser }) => safeUser as User);
+    localStorage.setItem(USERS_KEY, JSON.stringify(sanitized));
+    return sanitized;
   } catch {
     return [];
   }
@@ -35,7 +39,7 @@ function saveUsers(users: User[]) {
 function getAuthState(): AuthState {
   try {
     const raw = localStorage.getItem(AUTH_STATE_KEY);
-    if (raw) return { user: JSON.parse(raw) as User, isLoggedIn: true };
+    if (raw) { /* Legacy browser state is not proof of a server session. */ localStorage.removeItem(AUTH_STATE_KEY); }
   } catch { /* ignore */ }
   return { user: null, isLoggedIn: false };
 }
@@ -65,19 +69,33 @@ const defaultUserData = (userId: string): UserData => ({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // Discard pre-migration offline user lists (which included plaintext passwords).
+  useEffect(() => {
+    localStorage.removeItem('seanyan_users');
+    getUsers();
+  }, []);
   const [authState, setAuthState] = useState<AuthState>(getAuthState);
+
+  useEffect(() => {
+    let active = true;
+    api.me().then((result) => {
+      if (!active) return;
+      const user = (result as { user: User }).user;
+      setAuthState({ user, isLoggedIn: true });
+      localStorage.setItem(AUTH_STATE_KEY, JSON.stringify(user));
+    }).catch(() => { if (active) setAuthState({ user: null, isLoggedIn: false }); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!authState.isLoggedIn || !authState.user?.id) return;
     const currentUser = authState.user;
     let cancelled = false;
 
-    api.getUsers()
+    api.me()
       .then((result) => {
         if (cancelled) return;
-        const fresh = ((result as { users?: Partial<User>[] }).users || []).find(
-          (user) => user.id === currentUser.id
-        );
+        const fresh = (result as { user?: Partial<User> }).user;
         if (!fresh) return;
 
         const updatedUser: User = {
@@ -148,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (studentId: string, password: string): Promise<User> => {
     const response = await api.login(studentId, password) as { user: Omit<User, 'password'> };
-    const user: User = { ...response.user, password };
+    const user: User = { ...response.user };
     const users = getUsers().filter((item) => item.id !== user.id);
     saveUsers([...users, user]);
     setAuthState({ user, isLoggedIn: true });
@@ -165,7 +183,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     const newUser: User = {
       ...response.user,
-      password,
       createdAt: response.user.createdAt || new Date().toISOString(),
     };
     const users = getUsers().filter((item) => item.id !== newUser.id);
@@ -177,8 +194,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    void api.logout().catch(() => {});
     setAuthState({ user: null, isLoggedIn: false });
     localStorage.removeItem(AUTH_STATE_KEY);
+    localStorage.removeItem(USERS_KEY);
+    localStorage.removeItem('seanyan_users');
   }, []);
 
   const isAdmin = useCallback((): boolean => authState.user?.role === 'admin', [authState.user]);

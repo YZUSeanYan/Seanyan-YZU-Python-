@@ -5,6 +5,7 @@ import multer from 'multer';
 import mammoth from 'mammoth';
 import path from 'path';
 import fs from 'fs';
+import { createSecurity, hashPassword, verifyPassword } from './security.js';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,11 +13,13 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3456;
-const HOST = process.env.HOST || '0.0.0.0';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const HOST = process.env.HOST || '127.0.0.1';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
-app.use(cors());
-app.use(express.json({ limit: '20mb' }));
+// Cookie sessions are same-origin only. Configure a same-origin reverse proxy for production.
+app.disable('x-powered-by');
+app.use((req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); next(); });
+app.use(express.json({ limit: '2mb' }));
 
 const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
@@ -25,6 +28,8 @@ const uploadDir = path.join(dataDir, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const db = new Database(path.join(dataDir, 'seanyan.db'));
+const security = createSecurity(db);
+app.use('/api', (req, res, next) => req.method === 'GET' || req.method === 'HEAD' ? next() : security.requireCsrfHeader(req, res, next));
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -136,13 +141,19 @@ const stmts = {
 };
 
 function ensureAdmin() {
+  if (!ADMIN_PASSWORD || ADMIN_PASSWORD.length < 12 || ADMIN_PASSWORD === 'admin123') {
+    throw new Error('ADMIN_PASSWORD must be configured (at least 12 characters, not a default password)');
+  }
   const admin = stmts.findUserByStudentId.get('admin');
   if (!admin) {
-    stmts.createUser.run('admin-default', 'admin', '管理员', ADMIN_PASSWORD, 'admin', '', 1, new Date().toISOString());
-  } else {
-    stmts.updateUserPassword.run(ADMIN_PASSWORD, 'admin');
+    stmts.createUser.run('admin-default', 'admin', '管理员', hashPassword(ADMIN_PASSWORD), 'admin', '', 1, new Date().toISOString());
+  } else if (!verifyPassword(ADMIN_PASSWORD, admin.password)) {
+    // Invalidate any sessions created with the old admin password.
+    stmts.updateUserPassword.run(hashPassword(ADMIN_PASSWORD), 'admin');
+    security.revokeUserSessions(admin.id);
   }
 }
+security.migrateLegacyPasswords();
 ensureAdmin();
 
 function userResponse(user) {
@@ -228,6 +239,14 @@ function recordLoginActivity(userId, req, eventType, detail = {}) {
   return now;
 }
 
+app.get('/api/auth/me', security.requireAuth, (req, res) => {
+  res.json({ user: userResponse(req.actor) });
+});
+app.post('/api/auth/logout', security.requireAuth, (req, res) => {
+  security.endSession(req, res);
+  res.json({ success: true });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', mode: 'server', time: new Date().toISOString() });
 });
@@ -237,12 +256,13 @@ app.post('/api/register', (req, res) => {
     const { studentId, name, password } = req.body;
     if (!studentId || !name || !password) return res.status(400).json({ error: '学号、姓名和密码不能为空' });
     if (String(studentId).length < 2) return res.status(400).json({ error: '学号至少2个字符' });
-    if (String(password).length < 4) return res.status(400).json({ error: '密码至少4个字符' });
+    if (String(password).length < 8) return res.status(400).json({ error: '密码至少4个字符' });
     if (stmts.findUserByStudentId.get(studentId)) return res.status(409).json({ error: '该学号已被注册' });
 
     const id = 'user_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    stmts.createUser.run(id, studentId, name, password, 'student', '', 0, new Date().toISOString());
+    stmts.createUser.run(id, studentId, name, hashPassword(password), 'student', '', 0, new Date().toISOString());
     recordLoginActivity(id, req, 'register', { source: 'register' });
+    security.startSession(res, id);
     res.json({ success: true, user: userResponse(stmts.findUserByStudentId.get(studentId)) });
   } catch (err) {
     console.error('[Register Error]', err);
@@ -255,8 +275,9 @@ app.post('/api/login', (req, res) => {
     const { studentId, password } = req.body;
     if (!studentId || !password) return res.status(400).json({ error: '学号和密码不能为空' });
     const user = stmts.findUserByStudentId.get(studentId);
-    if (!user || user.password !== password) return res.status(401).json({ error: '学号或密码错误' });
+    if (!user || !verifyPassword(password, user.password)) return res.status(401).json({ error: '学号或密码错误' });
     recordLoginActivity(user.id, req, 'login', { source: 'password' });
+    security.startSession(res, user.id);
     res.json({ success: true, user: userResponse(stmts.findUserById.get(user.id)) });
   } catch (err) {
     console.error('[Login Error]', err);
@@ -264,7 +285,7 @@ app.post('/api/login', (req, res) => {
   }
 });
 
-app.get('/api/users', (req, res) => {
+app.get('/api/users', security.requireAuth, security.requireAdmin, (req, res) => {
   try {
     res.json({ users: stmts.getAllUsers.all().map(userResponse) });
   } catch (err) {
@@ -273,7 +294,7 @@ app.get('/api/users', (req, res) => {
   }
 });
 
-app.post('/api/activity/heartbeat', (req, res) => {
+app.post('/api/activity/heartbeat', security.requireAuth, security.requireSelf, (req, res) => {
   try {
     const { userId, path: currentPath } = req.body;
     if (!userId) return res.status(400).json({ error: '缺少用户ID' });
@@ -287,7 +308,7 @@ app.post('/api/activity/heartbeat', (req, res) => {
   }
 });
 
-app.get('/api/admin/activity', (req, res) => {
+app.get('/api/admin/activity', security.requireAuth, security.requireAdmin, (req, res) => {
   try {
     const limit = Math.max(20, Math.min(500, Number(req.query.limit) || 200));
     const users = stmts.getAllUsers.all();
@@ -338,7 +359,7 @@ app.get('/api/admin/activity', (req, res) => {
   }
 });
 
-app.patch('/api/users/:id', (req, res) => {
+app.patch('/api/users/:id', security.requireAuth, security.requireAdmin, (req, res) => {
   try {
     const user = stmts.findUserById.get(req.params.id);
     if (!user) return res.status(404).json({ error: '用户不存在' });
@@ -355,12 +376,13 @@ app.patch('/api/users/:id', (req, res) => {
   }
 });
 
-app.delete('/api/users/:id', (req, res) => {
+app.delete('/api/users/:id', security.requireAuth, security.requireAdmin, (req, res) => {
   try {
     const user = stmts.findUserById.get(req.params.id);
     if (!user) return res.status(404).json({ error: '用户不存在' });
     if (user.role === 'admin') return res.status(403).json({ error: '不能删除管理员账号' });
     const tx = db.transaction(() => {
+      security.revokeUserSessions(req.params.id);
       stmts.deleteUserData.run(req.params.id);
       stmts.deleteUserActivity.run(req.params.id);
       stmts.deleteUser.run(req.params.id);
@@ -373,7 +395,7 @@ app.delete('/api/users/:id', (req, res) => {
   }
 });
 
-app.get('/api/userdata/:userId', (req, res) => {
+app.get('/api/userdata/:userId', security.requireAuth, security.requireSelfOrAdmin, (req, res) => {
   try {
     const data = stmts.getUserData.get(req.params.userId);
     if (!data) {
@@ -392,7 +414,7 @@ app.get('/api/userdata/:userId', (req, res) => {
   }
 });
 
-app.post('/api/userdata/:userId', (req, res) => {
+app.post('/api/userdata/:userId', security.requireAuth, security.requireSelfOrAdmin, (req, res) => {
   try {
     const { wrong_answers, study_stats, memory_status, exam_history, practice_progress } = req.body;
     stmts.upsertUserData.run(
@@ -490,7 +512,7 @@ function questionsFilePath() {
 
 const upload = multer({ dest: uploadDir, limits: { fileSize: 10 * 1024 * 1024 } });
 
-app.post('/api/questions/import-word', upload.single('file'), async (req, res) => {
+app.post('/api/questions/import-word', security.requireAuth, security.requireAdmin, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: '请上传 Word 文件' });
     const result = await mammoth.extractRawText({ path: req.file.path });
