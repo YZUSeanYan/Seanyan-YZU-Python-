@@ -19,6 +19,7 @@ interface RetryModeProps {
   onExit: () => void;
   onComplete: (results: { correct: number; wrong: number; mastered: number }) => void;
   onMarkMastered: (questionId: number) => void;
+  onMarkWrong?: (questionId: number, userAnswer: string, correctAnswer: string) => void;
 }
 
 export default function RetryMode({
@@ -26,6 +27,7 @@ export default function RetryMode({
   onExit,
   onComplete,
   onMarkMastered,
+  onMarkWrong,
 }: RetryModeProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -61,8 +63,13 @@ export default function RetryMode({
     if (isCorrect) {
       setMasteredIds((prev) => new Set(prev).add(current.question.id));
       onMarkMastered(current.question.id);
+    } else {
+      const correctAnswer = Array.isArray(current.question.answer)
+        ? current.question.answer.join(' | ')
+        : current.question.answer;
+      onMarkWrong?.(current.question.id, selectedAnswer, correctAnswer);
     }
-  }, [current, selectedAnswer, currentIndex, onMarkMastered]);
+  }, [current, selectedAnswer, currentIndex, onMarkMastered, onMarkWrong]);
 
   const handleNext = useCallback(() => {
     if (currentIndex < total - 1) {

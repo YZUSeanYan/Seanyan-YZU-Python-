@@ -10,6 +10,7 @@ import WrongBookFilters from '@/components/wrongbook/WrongBookFilters';
 import WrongQuestionCard from '@/components/wrongbook/WrongQuestionCard';
 import EmptyState from '@/components/wrongbook/EmptyState';
 import RetryMode from '@/components/wrongbook/RetryMode';
+import { isQuestionAnswerCorrect } from '@/lib/answerCheck';
 
 type AnswerState = 'unanswered' | 'correct' | 'wrong' | 'skipped';
 
@@ -39,23 +40,6 @@ interface SimExamProgress {
   answers?: Record<number, string>;
   timestamp?: string;
   version?: number;
-}
-
-function normalizeAnswer(answer: string) {
-  const trimmed = answer.trim();
-  const match = trimmed.match(/^([A-D])[.\s]?/i);
-  return match ? match[1].toUpperCase() : trimmed.toLowerCase();
-}
-
-function isQuestionCorrect(question: Question, answer: string) {
-  if (!answer.trim()) return false;
-  const correctAnswer = Array.isArray(question.answer) ? question.answer : [question.answer];
-  if (question.type === 'single') return normalizeAnswer(answer) === normalizeAnswer(String(correctAnswer[0]));
-  if (Array.isArray(question.answer)) {
-    const answerParts = answer.split('|').map((part) => part.trim().toLowerCase());
-    return question.answer.every((part, index) => answerParts[index] === String(part).trim().toLowerCase());
-  }
-  return answer.trim().toLowerCase() === String(correctAnswer[0]).trim().toLowerCase();
 }
 
 function parsePracticeProgress(raw: string | undefined | null): PracticeProgress | null {
@@ -126,6 +110,7 @@ export default function WrongBook() {
   const { data } = useUserData();
   const {
     wrongAnswers,
+    addWrongAnswer,
     addWrongAnswers,
     markMastered,
     markNotMastered,
@@ -210,7 +195,7 @@ export default function WrongBook() {
         const id = Number(questionId);
         if (!answer?.trim() || existingIds.has(id)) return;
         const question = examQuestionById.map.get(id) || examQuestionById.legacyMap.get(id);
-        if (!question || isQuestionCorrect(question, answer)) return;
+        if (!question || isQuestionAnswerCorrect(question, answer)) return;
 
         existingIds.add(id);
         recovered.push({
@@ -380,11 +365,8 @@ export default function WrongBook() {
   }, [enrichedWrongAnswers]);
 
   const handleRetryComplete = useCallback((_results?: { correct: number; wrong: number; mastered: number }) => {
-    // _results currently unused; kept in the signature so the parent
-    // component (RetrySession) can be extended without touching this handler.
+    // Keep RetryMode mounted until the user dismisses RetryCompleteModal via onExit.
     void _results;
-    setRetryMode(false);
-    setRetryQuestions([]);
   }, []);
 
   const handleMarkMastered = useCallback((questionId: number) => {
@@ -407,6 +389,7 @@ export default function WrongBook() {
         }}
         onComplete={handleRetryComplete}
         onMarkMastered={markMastered}
+        onMarkWrong={addWrongAnswer}
       />
     );
   }
