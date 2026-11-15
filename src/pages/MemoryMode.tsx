@@ -19,6 +19,7 @@ import { useQuestions } from '@/hooks/useQuestions';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useWrongBook } from '@/hooks/useWrongBook';
 import { useStudyStats } from '@/hooks/useStudyStats';
+import { useUserData } from '@/contexts/UserDataContext';
 import FlashCard from '@/components/memory/FlashCard';
 
 // ---- Types ----
@@ -290,6 +291,7 @@ function StudyPage({
   onComplete: (statuses: MemoryStatus[], elapsedSeconds: number) => void;
 }) {
   const { addWrongAnswer } = useWrongBook();
+  const { updateMemoryStatus: syncMemoryStatus } = useUserData();
   const [, setMemoryStatus] = useLocalStorage<MemoryStatusMap>('pymaster_memory_status', {});
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -313,19 +315,20 @@ function StudyPage({
   const allMarked = statuses.every((s) => s !== 'unmarked');
   const markedCount = statuses.filter((s) => s !== 'unmarked').length;
 
-  // Persist status to localStorage & wrong book
+  // Persist status to localStorage, user data sync & wrong book
   const persistStatus = useCallback(
     (question: Question, status: MemoryStatus) => {
       setMemoryStatus((prev) => ({ ...prev, [question.id]: status }));
+      syncMemoryStatus((prev) => ({ ...prev, [question.id]: status }));
       // Add to wrong book if forgotten
       if (status === 'forgotten') {
         const correctAnswer = Array.isArray(question.answer)
-          ? question.answer[0]
+          ? question.answer.join(' | ')
           : question.answer;
         addWrongAnswer(question.id, '(背题-未掌握)', correctAnswer);
       }
     },
-    [setMemoryStatus, addWrongAnswer]
+    [setMemoryStatus, syncMemoryStatus, addWrongAnswer]
   );
 
   const handleFlip = useCallback(() => {
@@ -891,6 +894,7 @@ export default function MemoryMode() {
   const navigate = useNavigate();
   const { questions, loading, typeCounts } = useQuestions();
   const { recordAnswer } = useStudyStats();
+  const { updateMemoryStatus: syncMemoryStatus } = useUserData();
   void recordAnswer;
 
   // Persistent storage
@@ -956,8 +960,15 @@ export default function MemoryMode() {
         });
         return next;
       });
+      syncMemoryStatus((prev) => {
+        const next = { ...prev };
+        selectedQuestions.forEach((q, i) => {
+          next[q.id] = statuses[i];
+        });
+        return next;
+      });
     },
-    [selectedQuestions, setMemorySessions, setMemoryStatus]
+    [selectedQuestions, setMemorySessions, setMemoryStatus, syncMemoryStatus]
   );
 
   // ---- Restart ----

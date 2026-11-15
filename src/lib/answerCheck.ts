@@ -34,6 +34,7 @@ export function isQuestionAnswerCorrect(question: Question, answer?: string | nu
 
   if (Array.isArray(question.answer)) {
     const answerParts = answer.split('|').map((part) => normalizeTextAnswer(part));
+    if (answerParts.length !== question.answer.length) return false;
     return question.answer.every((part, index) => answerParts[index] === normalizeTextAnswer(String(part)));
   }
 

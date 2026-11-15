@@ -195,28 +195,44 @@ function loadStandaloneProgress(): Record<number, string> {
 // ===== Keys for localStorage (cache) =====
 const LS_DATA_KEY = 'seanyan_user_data_cache';
 
+function cacheKeyForUser(userId?: string): string {
+  return userId ? `${LS_DATA_KEY}_${userId}` : `${LS_DATA_KEY}_guest`;
+}
+
 // ===== Context =====
 const UserDataContext = createContext<UserDataContextType | null>(null);
 
 // ===== Helper: load from localStorage cache =====
-function loadFromCache(): UserDataState {
+function loadFromCache(userId?: string): UserDataState {
+  const key = cacheKeyForUser(userId);
   try {
-    const raw = localStorage.getItem(LS_DATA_KEY);
+    const raw = localStorage.getItem(key)
+      ?? (() => {
+        // Legacy shared cache is only safe when stamped with the same userId.
+        const legacy = localStorage.getItem(LS_DATA_KEY);
+        if (!legacy || !userId) return null;
+        const parsedLegacy = JSON.parse(legacy) as { userId?: string };
+        return parsedLegacy.userId === userId ? legacy : null;
+      })();
     if (raw) {
       const cached = normalizeUserData(JSON.parse(raw));
       return {
         ...cached,
-        memoryStatus: mergeMemoryStatus(cached.memoryStatus, loadStandaloneProgress()),
+        memoryStatus: mergeMemoryStatus(cached.memoryStatus, userId ? undefined : loadStandaloneProgress()),
       };
     }
   } catch { /* ignore */ }
-  return { ...defaultData, memoryStatus: loadStandaloneProgress() };
+  return { ...defaultData, memoryStatus: userId ? {} : loadStandaloneProgress() };
 }
 
 // ===== Helper: save to localStorage cache =====
-function saveToCache(data: UserDataState) {
+function saveToCache(data: UserDataState, userId?: string) {
   try {
-    localStorage.setItem(LS_DATA_KEY, JSON.stringify(data));
+    const serialized = JSON.stringify(userId ? { ...data, userId } : data);
+    localStorage.setItem(cacheKeyForUser(userId), serialized);
+    if (userId) {
+      localStorage.setItem(LS_DATA_KEY, serialized);
+    }
   } catch { /* ignore */ }
 }
 
@@ -225,10 +241,11 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
   const { authState } = useAuth();
   const userId = authState.user?.id;
 
-  const [data, setDataState] = useState<UserDataState>(loadFromCache);
+  const [data, setDataState] = useState<UserDataState>(() => loadFromCache(userId));
   const [isLoading, setIsLoading] = useState(false);
   const [isSynced, setIsSynced] = useState(false);
 
+  const activeUserIdRef = useRef<string | undefined>(userId);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ===== Sync to server =====
@@ -265,6 +282,13 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
 
   // ===== Load from server on login =====
   useEffect(() => {
+    const switchedUser = activeUserIdRef.current !== userId;
+    activeUserIdRef.current = userId;
+    if (switchedUser) {
+      if (syncTimer.current) clearTimeout(syncTimer.current);
+      setDataState(loadFromCache(userId));
+    }
+
     if (!userId) {
       setIsSynced(false);
       return;
@@ -306,8 +330,8 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
           (parsed.examHistory && (parsed.examHistory as unknown[]).length > 0)
         );
 
-        setDataState((prev) => {
-          const current = normalizeUserData(prev);
+        setDataState(() => {
+          const current = loadFromCache(userId);
           const merged = normalizeUserData({
             wrongAnswers: mergeWrongAnswers(current.wrongAnswers, parsed.wrongAnswers as WrongAnswer[] | undefined),
             studyStats: parsed.studyStats && (parsed.studyStats as StudyStats).totalAnswered > 0
@@ -316,13 +340,13 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
             memoryStatus: mergeMemoryStatus(
               parsed.memoryStatus as Record<number, string> | undefined,
               current.memoryStatus,
-              loadStandaloneProgress()
+              hasServerData ? undefined : loadStandaloneProgress()
             ),
             examHistory: parsed.examHistory && (parsed.examHistory as unknown[]).length > 0
               ? parsed.examHistory as unknown[]
               : current.examHistory,
           });
-          saveToCache(merged);
+          saveToCache(merged, userId);
 
           if (!hasServerData) {
             const localHasData = (
@@ -358,47 +382,47 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
   const setUserData = useCallback((partial: Partial<UserDataState>) => {
     setDataState((prev) => {
       const next = { ...prev, ...partial };
-      saveToCache(next);
+      saveToCache(next, userId);
       syncToServer(next);
       return next;
     });
-  }, [syncToServer]);
+  }, [syncToServer, userId]);
 
   const updateWrongAnswers = useCallback((updater: (prev: WrongAnswer[]) => WrongAnswer[]) => {
     setDataState((prev) => {
       const next = { ...prev, wrongAnswers: updater(prev.wrongAnswers) };
-      saveToCache(next);
+      saveToCache(next, userId);
       syncToServer(next);
       return next;
     });
-  }, [syncToServer]);
+  }, [syncToServer, userId]);
 
   const updateStudyStats = useCallback((updater: (prev: StudyStats) => StudyStats) => {
     setDataState((prev) => {
       const next = { ...prev, studyStats: updater(prev.studyStats) };
-      saveToCache(next);
+      saveToCache(next, userId);
       syncToServer(next);
       return next;
     });
-  }, [syncToServer]);
+  }, [syncToServer, userId]);
 
   const updateMemoryStatus = useCallback((updater: (prev: Record<number, string>) => Record<number, string>) => {
     setDataState((prev) => {
       const next = { ...prev, memoryStatus: updater(prev.memoryStatus) };
-      saveToCache(next);
+      saveToCache(next, userId);
       syncToServer(next);
       return next;
     });
-  }, [syncToServer]);
+  }, [syncToServer, userId]);
 
   const updateExamHistory = useCallback((updater: (prev: unknown[]) => unknown[]) => {
     setDataState((prev) => {
       const next = { ...prev, examHistory: updater(prev.examHistory) };
-      saveToCache(next);
+      saveToCache(next, userId);
       syncToServer(next);
       return next;
     });
-  }, [syncToServer]);
+  }, [syncToServer, userId]);
 
   return (
     <UserDataContext.Provider value={{

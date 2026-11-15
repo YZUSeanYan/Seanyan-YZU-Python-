@@ -52,7 +52,6 @@ export default function QuestionCard({
 }: QuestionCardProps) {
   const [showHint, setShowHint] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
-  const [fillAnswer, setFillAnswer] = useState('');
 
   const tColor = typeColors[question.type] || typeColors['single'];
   const dColor = difficultyColors[question.difficulty] || difficultyColors.easy;
@@ -145,11 +144,8 @@ export default function QuestionCard({
           <div className="space-y-3">
             <input
               type="text"
-              value={fillAnswer || selectedAnswer || ''}
-              onChange={(e) => {
-                setFillAnswer(e.target.value);
-                onSelectAnswer(e.target.value);
-              }}
+              value={selectedAnswer ?? ''}
+              onChange={(e) => onSelectAnswer(e.target.value)}
               disabled={submitted}
               placeholder="请输入你的答案..."
               className="w-full min-w-[120px] px-4 py-3 rounded-pm-md bg-pm-bg-primary border border-pm-border-color text-pm-text-primary placeholder:text-pm-text-muted focus:outline-none focus:border-pm-border-focus focus:ring-[3px] focus:ring-[rgba(15,76,129,0.1)] disabled:opacity-60"
